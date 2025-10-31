@@ -8,6 +8,7 @@
 
 /* Custom CSS modules */
 @import "./lexical.css";
+@import "./checkbox.css";
 
 /* ============================================ */
 /* Theme Configuration */
@@ -74,6 +75,8 @@
 /* ============================================ */
 
 :root {
+  caret-color: var(--chart-1);
+  caret-shape: round;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --icon-button: oklch(0.205 0 0);
@@ -168,6 +171,31 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Rounded caret for all text inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  textarea,
+  [contenteditable],
+  [cmdk-input] {
+    caret-shape: round;
+  }
+
+  /* Hide default caret when custom cursor is active */
+  [data-lexical-editor],
+  .lexical-content-editable {
+    caret-color: transparent !important;
+  }
+
+  /* Hide caret in all child elements too */
+  [data-lexical-editor] *,
+  .lexical-content-editable * {
+    caret-color: transparent !important;
+  }
 }
 
 /* ============================================ */
@@ -209,6 +237,45 @@
       transition: none;
     }
   }
+
+  /* Rounded underline utility */
+  .underline-rounded {
+    padding: 2px 0;
+    --underline-offset: 3px;
+    --underline-thickness: 2px;
+    --underline-color: gray;
+    --bg-pos: calc(1em + var(--underline-offset) + 1px);
+    --bg-circle: var(--underline-color);
+    --left: calc(var(--underline-thickness) / 2);
+    --width: calc(100% - var(--underline-thickness));
+    --bg-line: linear-gradient(var(--underline-color), var(--underline-color))
+      no-repeat var(--left) var(--bg-pos) / var(--width)
+      var(--underline-thickness);
+    --bg-left: radial-gradient(
+        var(--underline-thickness) circle at center,
+        var(--bg-circle) 50%,
+        transparent 51%
+      )
+      no-repeat left var(--bg-pos) / var(--underline-thickness)
+      var(--underline-thickness);
+    --bg-right: radial-gradient(
+        var(--underline-thickness) circle at center,
+        var(--bg-circle) 50%,
+        transparent 51%
+      )
+      no-repeat right var(--bg-pos) / var(--underline-thickness)
+      var(--underline-thickness);
+    --bg-rounded-underline: var(--bg-left), var(--bg-right), var(--bg-line);
+    background: var(--bg-rounded-underline);
+    box-decoration-break: clone;
+    transition: 120ms ease-out;
+    transition-property: --underline-color, color;
+  }
+
+  .underline-rounded:focus-visible,
+  .underline-rounded:hover {
+    --underline-color: darkgray;
+  }
 }
 
 html,
@@ -217,4 +284,153 @@ body {
   min-height: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ============================================ */
+/* Custom Writer Text Editor Styles */
+/* ============================================ */
+
+/* CSS Variables for custom cursor editor */
+:root {
+  --text-color: #e5e5e5;
+  --text-line-height: 28px;
+  --text-font-size: 16px;
+  --text-font-family: "iA Writer Mono V", Menlo, monospace;
+  --cursor-width: 4px;
+  --cursor-color: #838383;
+  --cursor-radius: 2px;
+  --cursor-animation-duration: 80ms;
+  --scroll-animation-duration: 80ms;
+  --scrollbar-width: 8px;
+  --scrollbar-gap: 5px;
+  --scrollbar-minHeight: 32px;
+  --scrollbar-color: rgba(127, 127, 127, 0.5);
+  --scrollbar-active-color: rgba(200, 200, 200, 0.5);
+  --scrollbar-animation-delay: 800ms;
+  --scrollbar-animation-duration: 200ms;
+  --selection-color: #444;
+}
+
+.dark {
+  --text-color: #e5e5e5;
+  --cursor-color: #838383;
+  --selection-color: #444;
+  --scrollbar-color: rgba(127, 127, 127, 0.5);
+  --scrollbar-active-color: rgba(200, 200, 200, 0.5);
+}
+
+/* Editor container */
+[writer-editor] {
+  position: relative;
+  max-height: 100vh;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  cursor: text;
+  font-feature-settings:
+    "calt" 0,
+    "case" 0,
+    "ccmp" 0,
+    "kern" 0;
+}
+
+/* Editor wrapper for scroll handling */
+[writer-wrapper] {
+  position: absolute;
+  contain: strict;
+  width: 1000000px;
+  height: 1000000px;
+  transform: translate3d(0, 0, 0);
+  will-change: top;
+}
+
+/* Lines container */
+[writer-lines],
+[writer-decorations] {
+  position: absolute;
+  line-height: var(--text-line-height);
+  color: var(--text-color);
+  font-family: var(--text-font-family);
+  font-size: var(--text-font-size);
+}
+
+/* Individual line */
+[writer-line] {
+  width: 100%;
+  position: absolute;
+  min-height: var(--text-line-height);
+}
+
+/* Selection decoration */
+[writer-decoration] {
+  contain: strict;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: left center;
+  width: 1px;
+  position: absolute;
+  min-height: var(--text-line-height);
+  background: var(--selection-color);
+}
+
+/* Hidden textarea for native selection calculations */
+[writer-textarea] {
+  contain: strict;
+  content-visibility: auto;
+  pointer-events: none;
+  position: absolute;
+  padding: 0;
+  border: none;
+  height: var(--text-line-height);
+  white-space: nowrap;
+  opacity: 0;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+/* Custom cursor element */
+[writer-cursor] {
+  pointer-events: none;
+  position: absolute;
+  width: var(--cursor-width, 4px);
+  border-radius: var(--cursor-radius, 2px);
+  height: var(--text-line-height, 28px);
+  background: var(--cursor-color, #838383);
+  top: 0;
+  left: 0;
+  will-change: transform;
+  transition: transform var(--cursor-animation-duration, 80ms) ease;
+  z-index: 9999;
+  /* Make sure cursor is visible even without background */
+  box-shadow: 0 0 0 1px var(--cursor-color, #838383);
+}
+
+/* Scrollbar container */
+[writer-scrollbar] {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--scrollbar-width);
+  margin: var(--scrollbar-gap);
+}
+
+/* Scrollbar thumb */
+[writer-scrollbar-thumb] {
+  cursor: default;
+  background: var(--scrollbar-color);
+  min-height: var(--scrollbar-minHeight);
+  border-radius: var(--scrollbar-width);
+  opacity: 0;
+  will-change: transform, opacity, height;
+  transition:
+    transform 80ms ease,
+    background 80ms ease,
+    opacity var(--scrollbar-animation-duration) ease;
+}
+
+[writer-scrollbar-thumb]:active {
+  background: var(--scrollbar-active-color);
 }

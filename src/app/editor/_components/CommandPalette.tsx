@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   useCommandPaletteState,
@@ -8,7 +8,16 @@ import {
 } from "@/hooks/use-keyboard-shortcuts";
 import { Command } from "cmdk";
 import { api } from "@/trpc/react";
-import { Search, Home, Plus, Settings, FileText, Users } from "lucide-react";
+import {
+  Search,
+  Home,
+  Plus,
+  Settings,
+  FileText,
+  Users,
+  Edit,
+  Eye,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Label } from "@/components/ui/label";
@@ -20,6 +29,7 @@ import {
 } from "react-icons/fa6";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { toast } from "sonner";
+import { toggleEditMode, getEditMode } from "@/app/editor/_components/editor";
 
 interface CommandPaletteProps {
   documentId: string;
@@ -92,6 +102,31 @@ export function CommandPalette({
     setOpen(false);
   };
 
+  const handleToggleEditMode = () => {
+    const result = toggleEditMode(documentId, canWrite);
+    if (result === null) {
+      toast.error("Editor not available");
+    } else if (result === false) {
+      toast.error("You don't have permission to edit this document");
+    } else {
+      setIsCurrentlyEditable(result);
+      const mode = result ? "Edit" : "Read";
+      toast.success(`Switched to ${mode} mode`, { duration: 1500 });
+      setOpen(false);
+    }
+  };
+
+  // Track current editable state and refresh when palette opens
+  const [isCurrentlyEditable, setIsCurrentlyEditable] = useState(canWrite);
+
+  useEffect(() => {
+    if (open) {
+      // Refresh editable state when palette opens
+      const currentMode = getEditMode(documentId);
+      setIsCurrentlyEditable(currentMode ?? canWrite);
+    }
+  }, [open, documentId, canWrite]);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
@@ -107,7 +142,7 @@ export function CommandPalette({
 
         <Command className="overflow-hidden">
           {/* Search Input */}
-          <Label className="bg-card mx-2 my-2 flex items-center rounded-2xl border px-4 py-3">
+          <Label className="bg-card mx-2 my-2 flex items-center gap-2 rounded-2xl border px-4 py-3">
             <Search className="text-muted-foreground h-4 w-4 shrink-0" />
             <Command.Input
               placeholder="Type a command or search..."
@@ -125,11 +160,11 @@ export function CommandPalette({
             {/* Actions */}
             <Command.Group
               heading="Actions"
-              className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+              className="**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
             >
               <Command.Item
                 onSelect={createNewDocument}
-                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span className="flex-1">Create New Document</span>
@@ -146,12 +181,33 @@ export function CommandPalette({
                     window.dispatchEvent(event);
                     setOpen(false);
                   }}
-                  className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                  className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
                 >
                   <Settings className="h-4 w-4 shrink-0" />
                   <span className="flex-1">Edit Title</span>
                 </Command.Item>
               )}
+
+              <Command.Item
+                onSelect={handleToggleEditMode}
+                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
+              >
+                {isCurrentlyEditable ? (
+                  <>
+                    <Eye className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">Switch to Read Mode</span>
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">
+                      {canWrite
+                        ? "Switch to Edit Mode"
+                        : "Switch to Edit Mode (No Permission)"}
+                    </span>
+                  </>
+                )}
+              </Command.Item>
 
               {isOwner && (
                 <Command.Item
@@ -161,7 +217,7 @@ export function CommandPalette({
                     window.dispatchEvent(event);
                     setOpen(false);
                   }}
-                  className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                  className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
                 >
                   <Users className="h-4 w-4 shrink-0" />
                   <span className="flex-1">Share Document</span>
@@ -172,12 +228,12 @@ export function CommandPalette({
             {/* Navigation */}
             <Command.Group
               heading="Navigation"
-              className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+              className="**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
             >
               <Command.Item
                 onSelect={() => navigate("/editor")}
                 onMouseEnter={() => router.prefetch("/editor")}
-                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
               >
                 <Home className="h-4 w-4 shrink-0" />
                 <span className="flex-1">Documents List</span>
@@ -191,14 +247,14 @@ export function CommandPalette({
             {documents && documents.length > 0 && (
               <Command.Group
                 heading="Documents"
-                className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+                className="**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
               >
                 {documents.map((doc) => (
                   <Command.Item
                     key={doc.id}
                     onSelect={() => navigateToDocument(doc.id)}
                     onMouseEnter={() => router.prefetch(`/editor/${doc.id}`)}
-                    className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                    className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
                   >
                     <FileText className="h-4 w-4 shrink-0" />
                     <span className="flex-1">
@@ -221,12 +277,12 @@ export function CommandPalette({
             {isOwner && members && members.length > 0 && (
               <Command.Group
                 heading="Members"
-                className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+                className="**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
               >
                 {members.map((member) => (
                   <Command.Item
                     key={member.id}
-                    className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                    className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
                   >
                     <Users className="h-4 w-4 shrink-0" />
                     <span className="flex-1">
@@ -240,12 +296,12 @@ export function CommandPalette({
             {/* General */}
             <Command.Group
               heading="General"
-              className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+              className="**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
             >
               <Command.Item
                 onSelect={() => navigate("/editor")}
                 onMouseEnter={() => router.prefetch("/editor")}
-                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
               >
                 <Home className="h-4 w-4 shrink-0" />
                 <span className="flex-1">Dashboard</span>
@@ -255,11 +311,11 @@ export function CommandPalette({
             {/* Help */}
             <Command.Group
               heading="Help"
-              className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+              className="**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
             >
               <Command.Item
                 onSelect={openKeyboardShortcuts}
-                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm ease-out outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                className="group aria-selected:bg-accent aria-selected:text-accent-foreground relative flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
               >
                 <FileText className="h-4 w-4 shrink-0" />
                 <span className="flex-1">Keyboard Shortcuts</span>

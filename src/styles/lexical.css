@@ -7,17 +7,64 @@
   justify-content: center;
 }
 
+/* RichTextPlugin creates a wrapper div that contains both ContentEditable and placeholder */
+.editor > div:has([data-lexical-editor]) {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  /* Center the wrapper content */
+  margin: 0 auto;
+  /* Ensure wrapper fills and matches editor container */
+  display: block;
+  box-sizing: border-box;
+  min-height: 60vh;
+}
+
 [data-lexical-editor] {
-  padding: 2rem 4rem;
   /* outline removed */
   min-height: 60vh;
   max-width: 900px;
   width: 100%;
+  /* Center the editor container */
+  margin: 0 auto;
+  /* Ensure ContentEditable fills the container */
+  display: block;
+  box-sizing: border-box;
+  position: relative;
+  /* Hide default browser caret when custom cursor is active */
+  caret-color: transparent !important;
+}
+
+/* Ensure ContentEditable element matches .editor dimensions exactly */
+/* Note: padding is now applied via .lexical-content-editable selector */
+/* The ContentEditable element should fill its parent container completely */
+.lexical-content-editable {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 60vh !important;
+  box-sizing: border-box !important;
+  padding: 2rem 4rem !important;
+  /* Center the content */
+  margin: 0 auto !important;
+  /* Hide default browser caret when custom cursor is active */
+  caret-color: transparent !important;
 }
 
 [data-lexical-editor] p {
   /* Remove top margin so caret aligns with placeholder at the top */
   margin: 0 0 0.8em 0;
+}
+
+/* Hide default browser caret completely when custom cursor is active */
+[data-lexical-editor] *,
+[data-lexical-editor] *::before,
+[data-lexical-editor] *::after {
+  caret-color: transparent !important;
+}
+
+.lexical-content-editable,
+.lexical-content-editable * {
+  caret-color: transparent !important;
 }
 
 /* For mobile */
@@ -46,9 +93,281 @@
 
 .placeholder {
   position: absolute;
-  /* Overlay the editable and use identical padding for perfect alignment */
-  inset: 0;
-  padding: 2rem 4rem;
+  /* Overlay the ContentEditable - match .lexical-content-editable padding to align with text content */
+  top: 2rem;
+  left: 4rem;
+  right: 4rem;
   pointer-events: none;
   opacity: 0.5;
+  color: var(--muted-foreground);
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* ============================================ */
+/* Lexical Theme Styles */
+/* ============================================ */
+
+/* Paragraph */
+.editor-paragraph {
+  margin: 0 0 0.8em 0;
+  position: relative;
+}
+
+/* Quote */
+.editor-quote {
+  margin: 0;
+  margin-left: 1em;
+  padding-left: 1em;
+  border-left: 3px solid var(--border);
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+/* Headings */
+.editor-heading-h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin: 0 0 0.5em 0;
+  line-height: 1.2;
+}
+
+.editor-heading-h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin: 0 0 0.5em 0;
+  line-height: 1.3;
+}
+
+.editor-heading-h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 0 0 0.5em 0;
+  line-height: 1.4;
+}
+
+.editor-heading-h4 {
+  font-size: 1.125em;
+  font-weight: 600;
+  margin: 0 0 0.5em 0;
+  line-height: 1.4;
+}
+
+.editor-heading-h5 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0 0 0.5em 0;
+  line-height: 1.5;
+}
+
+.editor-heading-h6 {
+  font-size: 0.875em;
+  font-weight: 600;
+  margin: 0 0 0.5em 0;
+  line-height: 1.5;
+}
+
+/* Lists */
+.editor-list-ol {
+  padding: 0;
+  margin: 0 0 0.8em 0;
+  padding-left: 1.5em;
+}
+
+.editor-list-ul {
+  padding: 0;
+  margin: 0 0 0.8em 0;
+  padding-left: 1.5em;
+}
+
+.editor-listitem {
+  margin: 0.25em 0;
+}
+
+.editor-nested-listitem {
+  list-style-type: none;
+}
+
+.editor-listitem-checked,
+.editor-listitem-unchecked {
+  position: relative;
+  margin-left: 0.5em;
+  margin-right: 0.5em;
+  padding-left: 1.5em;
+  padding-right: 0.5em;
+  list-style-type: none;
+  outline: none;
+}
+
+.editor-listitem-checked {
+  text-decoration: line-through;
+}
+
+.editor-listitem-checked:before,
+.editor-listitem-unchecked:before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  top: 0.125em;
+  left: 0;
+  cursor: pointer;
+  position: absolute;
+  border: 1px solid var(--border);
+  background: var(--background);
+  border-radius: 0.25em;
+}
+
+.editor-listitem-checked:before {
+  content: "✓";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  font-size: 0.75em;
+}
+
+/* Hashtag */
+.editor-hashtag {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+  padding: 0.125em 0.375em;
+  border-radius: 0.25em;
+  font-size: 0.875em;
+}
+
+/* Image */
+.editor-image {
+  cursor: default;
+  display: inline-block;
+  position: relative;
+  user-select: none;
+  max-width: 100%;
+  height: auto;
+  margin: 0.5em 0;
+}
+
+/* Link */
+.editor-link {
+  color: var(--chart-1);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.editor-link:hover {
+  color: var(--chart-2);
+}
+
+/* Text Formatting */
+.editor-text-bold {
+  font-weight: 700;
+}
+
+.editor-text-italic {
+  font-style: italic;
+}
+
+.editor-text-underline {
+  text-decoration: underline;
+}
+
+.editor-text-strikethrough {
+  text-decoration: line-through;
+}
+
+.editor-text-underline-strikethrough {
+  text-decoration: underline line-through;
+}
+
+.editor-text-code {
+  background-color: var(--muted);
+  padding: 0.125em 0.25em;
+  border-radius: 0.25em;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 0.875em;
+}
+
+.editor-text-subscript {
+  font-size: 0.75em;
+  vertical-align: sub;
+}
+
+.editor-text-superscript {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+/* Code Block */
+.editor-code {
+  background-color: var(--muted);
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  display: block;
+  padding: 0.75em 1em;
+  margin: 0.8em 0;
+  border-radius: 0.5em;
+  overflow-x: auto;
+  position: relative;
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+/* Code Highlight Tokens */
+.editor-code .editor-token-comment {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.editor-code .editor-token-punctuation {
+  color: var(--muted-foreground);
+}
+
+.editor-code .editor-token-property {
+  color: var(--chart-1);
+}
+
+.editor-code .editor-token-selector {
+  color: var(--chart-2);
+}
+
+.editor-code .editor-token-operator {
+  color: var(--chart-3);
+}
+
+.editor-code .editor-token-attr {
+  color: var(--chart-4);
+}
+
+.editor-code .editor-token-variable {
+  color: var(--chart-5);
+}
+
+.editor-code .editor-token-function {
+  color: var(--primary);
+}
+
+/* Selection styling */
+.editor-paragraph::selection,
+.editor-heading-h1::selection,
+.editor-heading-h2::selection,
+.editor-heading-h3::selection,
+.editor-heading-h4::selection,
+.editor-heading-h5::selection,
+.editor-heading-h6::selection,
+.editor-quote::selection {
+  background-color: var(--chart-1);
+  color: var(--background);
+}
+
+/* Dark mode adjustments */
+.dark .editor-quote {
+  border-left-color: var(--border);
+}
+
+.dark .editor-code {
+  background-color: var(--card);
 }

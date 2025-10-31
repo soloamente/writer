@@ -5,17 +5,102 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
+import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { OnChangePlugin as LexicalOnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-import type { EditorState } from "lexical";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import type { EditorState, LexicalEditor } from "lexical";
 import {
   liveblocksConfig,
   LiveblocksPlugin,
   FloatingToolbar,
 } from "@liveblocks/react-lexical";
 import { Threads } from "@/app/editor/_components/threads";
+import { editorTheme } from "@/app/editor/_components/editorTheme";
+import { CursorPlugin } from "@/app/editor/_components/CursorPlugin";
 import { api } from "@/trpc/react";
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import { toast } from "sonner";
+
+// Plugin to track and manage editable state
+function EditableStatePlugin({
+  canWrite,
+  onEditableChange,
+}: {
+  canWrite: boolean;
+  onEditableChange?: (isEditable: boolean) => void;
+}) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    // Set initial editable state based on permissions
+    if (editor.isEditable() !== canWrite) {
+      editor.setEditable(canWrite);
+      onEditableChange?.(canWrite);
+    }
+
+    // Register listener for editable state changes
+    const removeEditableListener = editor.registerEditableListener(
+      (editable) => {
+        onEditableChange?.(editable);
+      },
+    );
+
+    return () => {
+      removeEditableListener();
+    };
+  }, [editor, canWrite, onEditableChange]);
+
+  // Update editor editable state when canWrite changes
+  useEffect(() => {
+    // Only allow switching to edit mode if user has write permission
+    // But allow switching to read mode even if user has write permission
+    if (!canWrite && editor.isEditable()) {
+      editor.setEditable(false);
+    } else if (canWrite && !editor.isEditable()) {
+      // Don't force edit mode if user manually switched to read mode
+      // Only sync if there's a permission change
+      // This preserves user's manual read mode preference
+    }
+  }, [editor, canWrite]);
+
+  return null;
+}
+
+// Export editor instance and editable state via context/event
+// This allows other components to toggle read/edit mode
+const editorRefContext = new Map<string, LexicalEditor>();
+
+// Function to get editor instance for a document
+export function getEditorInstance(documentId: string): LexicalEditor | null {
+  return editorRefContext.get(documentId) ?? null;
+}
+
+// Function to toggle edit mode (if user has permission)
+export function toggleEditMode(
+  documentId: string,
+  canWrite: boolean,
+): boolean | null {
+  const editor = editorRefContext.get(documentId);
+  if (!editor) return null;
+
+  const currentEditable = editor.isEditable();
+
+  // If trying to enable edit mode, check permissions
+  if (!currentEditable && !canWrite) {
+    return false; // Cannot enable edit mode without permission
+  }
+
+  // Toggle editable state
+  const newEditable = !currentEditable;
+  editor.setEditable(newEditable);
+  return newEditable;
+}
+
+// Function to get current editable state
+export function getEditMode(documentId: string): boolean | null {
+  const editor = editorRefContext.get(documentId);
+  return editor ? editor.isEditable() : null;
+}
 
 export function Editor({
   documentId,
@@ -26,19 +111,21 @@ export function Editor({
   initialContent: string | null;
   canWrite?: boolean;
 }) {
+  const [isEditable, setIsEditable] = useState(canWrite);
+
   // Wrap your Lexical config with `liveblocksConfig`
   const initialConfig = liveblocksConfig({
     namespace: "Writer",
     // @ts-expect-error - liveblocksConfig wraps the config, editorState is valid but not in types
     editorState: initialContent ?? undefined,
-    editable: canWrite, // Disable editing if read-only
+    editable: canWrite, // Initialize editable state based on permissions
+    theme: editorTheme, // Apply comprehensive theme configuration
     onError: (error: Error) => {
       console.error(error);
       throw error;
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   const updateMutation = api.document.updateContent.useMutation({
     onError: (error: unknown) => {
       const message =
@@ -68,10 +155,31 @@ export function Editor({
     };
   }, []);
 
+  // Plugin to register editor instance globally
+  function EditorRegistrationPlugin({ docId }: { docId: string }) {
+    const [editor] = useLexicalComposerContext();
+
+    useEffect(() => {
+      // Register editor instance for this document
+      editorRefContext.set(docId, editor);
+
+      // Cleanup on unmount
+      return () => {
+        editorRefContext.delete(docId);
+      };
+    }, [editor, docId]);
+
+    return null;
+  }
+
   const handleChange = useMemo(
     () => (editorState: EditorState) => {
       // Don't save if user doesn't have write permission
       if (!canWrite) return;
+
+      // Don't save if editor is in read-only mode
+      const editor = editorRefContext.get(documentId);
+      if (editor && !editor.isEditable()) return;
 
       // Skip first change triggered by initial load
       if (skipFirst.current) {
@@ -89,7 +197,6 @@ export function Editor({
       debounceRef.current = setTimeout(() => {
         savingRef.current = true;
         lastSavedRef.current = jsonStr;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         updateMutation.mutate(
           { id: documentId, content: jsonStr },
           {
@@ -106,24 +213,32 @@ export function Editor({
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className="editor">
+        <EditorRegistrationPlugin docId={documentId} />
+        <EditableStatePlugin
+          canWrite={canWrite}
+          onEditableChange={setIsEditable}
+        />
         <RichTextPlugin
           contentEditable={
             <ContentEditable
+              className="lexical-content-editable"
               style={{
-                cursor: canWrite ? "text" : "not-allowed",
-                opacity: canWrite ? 1 : 0.7,
+                cursor: isEditable ? "text" : "not-allowed",
+                opacity: isEditable ? 1 : 0.7,
               }}
             />
           }
-          placeholder={
+          placeholder={(placeholderIsEditable) => (
             <div className="placeholder">
-              {canWrite ? "Start typing here…" : "Read-only document"}
+              {placeholderIsEditable ? "Start typing here…" : "Read-only mode"}
             </div>
-          }
+          )}
           ErrorBoundary={LexicalErrorBoundary}
         />
         <AutoFocusPlugin />
+        <HistoryPlugin />
         <LexicalOnChangePlugin onChange={handleChange} />
+        <CursorPlugin enabled={isEditable} />
         <LiveblocksPlugin>
           <Threads />
           <FloatingToolbar />
