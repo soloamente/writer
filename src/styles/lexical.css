@@ -1,0 +1,54 @@
+.editor {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-lexical-editor] {
+  padding: 2rem 4rem;
+  /* outline removed */
+  min-height: 60vh;
+  max-width: 900px;
+  width: 100%;
+}
+
+[data-lexical-editor] p {
+  /* Remove top margin so caret aligns with placeholder at the top */
+  margin: 0 0 0.8em 0;
+}
+
+/* For mobile */
+.floating-threads {
+  display: none;
+}
+
+/* For desktop */
+.anchored-threads {
+  display: block;
+  max-width: 300px;
+  width: 100%;
+  position: absolute;
+  right: 4px;
+}
+
+@media (max-width: 640px) {
+  .floating-threads {
+    display: block;
+  }
+
+  .anchored-threads {
+    display: none;
+  }
+}
+
+.placeholder {
+  position: absolute;
+  /* Overlay the editable and use identical padding for perfect alignment */
+  inset: 0;
+  padding: 2rem 4rem;
+  pointer-events: none;
+  opacity: 0.5;
+}
