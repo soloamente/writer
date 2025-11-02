@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createRangeSelection, $setSelection, $getSelection } from "lexical";
+import { Point } from "@/lib/writer/position";
 
 /**
  * LexicalCursorRenderer component renders custom cursor using Lexical's selection API
@@ -50,15 +51,100 @@ export function LexicalCursorRenderer() {
     let lastLexicalPosition: { left: number; top: number; height: number } | null = null;
     let lastParagraphKey: string | null = null;
     
+    // Track Shift+Enter for soft breaks
+    let justPressedShiftEnter = false;
+    
+    // Track the line position when typing after Enter - this helps maintain position when deleting
+    // When you type on a new line after Enter, save that line's vertical position
+    // This ensures when you delete all text on that line, cursor stays on that line
+    let savedLinePositionAfterEnter: { top: number; left: number } | null = null;
+    
+    // Track cursor position as Point (line/column) for improved precision
+    // This provides a more reliable way to track position during deletion
+    let currentCursorPoint: Point | null = null;
+    let previousCursorPoint: Point | null = null;
+    
+    /**
+     * Convert Lexical selection to Point (line/column)
+     * This provides a more precise way to track cursor position
+     */
+    const getPointFromLexicalSelection = (): Point | null => {
+      try {
+        return editor.getEditorState().read(() => {
+          const lexicalSelection = $getSelection();
+          if (!lexicalSelection || !lexicalSelection.anchor) {
+            return null;
+          }
+          
+          const root = $getRoot();
+          const children = root.getChildren();
+          
+          // Find which paragraph contains the cursor
+          const anchorNode = lexicalSelection.anchor.getNode();
+          let paragraphIndex = -1;
+          let column = 0;
+          
+          // Walk up to find the paragraph
+          let current: any = anchorNode;
+          let targetParagraph: any = null;
+          
+          while (current) {
+            const type = current.getType?.();
+            if (type === 'paragraph') {
+              targetParagraph = current;
+              break;
+            }
+            current = current.getParent?.();
+          }
+          
+          // Find paragraph index
+          if (targetParagraph) {
+            const paragraphKey = targetParagraph.getKey();
+            for (let i = 0; i < children.length; i++) {
+              if (children[i].getKey() === paragraphKey) {
+                paragraphIndex = i;
+                break;
+              }
+            }
+            
+            // Calculate column offset within the paragraph
+            // For now, use anchor offset directly - Lexical provides this
+            const offset = lexicalSelection.anchor.offset;
+            column = offset || 0;
+          } else {
+            // Fallback: use last paragraph
+            paragraphIndex = children.length > 0 ? children.length - 1 : 0;
+            column = 0;
+          }
+          
+          return new Point(paragraphIndex, column);
+        });
+      } catch (e) {
+        return null;
+      }
+    };
+    
     // Listen for Enter key to add delay for new line
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
-        justPressedEnter = true;
-        // Keep the flag longer to prevent cursor jumping back to start
-        // Clear the flag after DOM has fully updated and user starts typing
-        setTimeout(() => {
-          justPressedEnter = false;
-        }, 500);
+        if (e.shiftKey) {
+          // Shift+Enter creates a soft break (line break within same paragraph)
+          justPressedShiftEnter = true;
+          setTimeout(() => {
+            justPressedShiftEnter = false;
+          }, 500);
+        } else {
+          // Regular Enter creates a new paragraph
+          // Reset savedLinePositionAfterEnter when pressing a new Enter
+          // This ensures we don't use the old saved position for the new line
+          savedLinePositionAfterEnter = null;
+          justPressedEnter = true;
+          // Keep the flag longer to prevent cursor jumping back to start
+          // Clear the flag after DOM has fully updated and user starts typing
+          setTimeout(() => {
+            justPressedEnter = false;
+          }, 500);
+        }
       }
     };
     
@@ -126,6 +212,14 @@ export function LexicalCursorRenderer() {
             // Calculate line height first
             const lineHeight = parseFloat(computedStyle.lineHeight) || 28;
             
+            // Update current cursor Point for improved precision tracking
+            // This provides a more reliable way to track position during deletion
+            const newCursorPoint = getPointFromLexicalSelection();
+            if (newCursorPoint) {
+              previousCursorPoint = currentCursorPoint ? Point.from(currentCursorPoint) : null;
+              currentCursorPoint = newCursorPoint;
+            }
+            
             // Check if cursor is on the same line as before (for deletion detection)
             // If cursor is at horizontal start but on same line vertically, it's just empty text, not a jump
             // Check if we're close to previousTop OR if DOM is incorrectly reporting first line when we were on a different line
@@ -141,11 +235,257 @@ export function LexicalCursorRenderer() {
                                          (wasOnDifferentLine && isDOMAtFirstLine && isDOMAtStartHorizontally) ||
                                          (wasOnDifferentLine && isDOMAtFirstLine && isAtStartHorizontal && wasNotAtStartHorizontally);
             
+            // Calculate previousTopIsDifferent ONCE at the beginning - used in multiple checks below
+            // This ensures cursor stays on correct line when deleting all text on a line
+            const previousTopIsDifferent = previousTop > 0 && Math.abs(previousTop - (rootRect.top + paddingTop)) > 5;
+            
+            // Use Point-based tracking for improved precision - if previousCursorPoint exists and is on same line, trust it
+            // This provides a more reliable way to track position during deletion than pixel-based tracking alone
+            const isOnSameLineAsPoint = previousCursorPoint && currentCursorPoint && 
+                                      previousCursorPoint.line === currentCursorPoint.line;
+            
+            // Also check if previousCursorPoint points to a different line (not first) while currentCursorPoint points to first line
+            // This catches the case when deleting text causes cursor to jump to first line, but we were on a different line
+            const wasOnDifferentLineFromPoint = previousCursorPoint && currentCursorPoint && 
+                                             previousCursorPoint.line > 0 && 
+                                             currentCursorPoint.line === 0 &&
+                                             previousCursorPoint.line !== currentCursorPoint.line;
+            
+            // PRIORITY CHECK 0: Handle Shift+Enter (soft break) - use DOM position immediately
+            // For soft breaks, DOM position is accurate and should be used directly
+            if (justPressedShiftEnter && hasValidCoordinates && isWithinRootBounds) {
+              const targetLeft = rect.left;
+              const targetTop = rect.top;
+              const targetHeight = rect.height || lineHeight;
+              
+              cursorElement.style.transform = `translate(${targetLeft}px, ${targetTop}px)`;
+              cursorElement.style.height = `${targetHeight}px`;
+              cursorElement.style.display = "block";
+              
+              previousLeft = targetLeft;
+              previousTop = targetTop;
+              wasOnNonStartLine = true;
+              isUsingLexicalPosition = false;
+              lastLexicalPosition = null;
+              lastParagraphKey = null;
+              return;
+            }
+            
+            // ULTRA-EARLY CHECK: When deleting text (padding edge OR horizontal start) on a line,
+            // ALWAYS use Point-based tracking, previousTop, savedLinePositionAfterEnter, or Lexical to maintain position
+            // This is the most critical case - when you delete all text on a line, stay on that line
+            // isOnSameLineAsPoint and wasOnDifferentLineFromPoint are already defined above - use Point-based tracking for improved precision
+            const isDeletingAllTextOnLine = (isAtPaddingEdge || isAtStartHorizontal) && 
+                                           (isOnSameLineAsPoint || wasOnDifferentLineFromPoint || previousTopIsDifferent || savedLinePositionAfterEnter !== null);
+            
+            if (isDeletingAllTextOnLine && hasValidCoordinates && isWithinRootBounds) {
+              // When deleting all text on a line, ALWAYS use Point-based tracking first, then Lexical, then savedLinePositionAfterEnter/previousTop as fallback
+              // This ensures cursor stays on the correct line, just like Enter behavior
+              
+              // PRIORITY: Use Point-based tracking directly if we know we're on the same line OR if cursor jumped to first line but we were on different line
+              // This is the most reliable method - if previousCursorPoint exists and is on same line OR was on different line, use it
+              if ((isOnSameLineAsPoint || wasOnDifferentLineFromPoint) && previousCursorPoint !== null) {
+                try {
+                  const pointBasedPosition = editor.getEditorState().read(() => {
+                    const root = $getRoot();
+                    const children = root.getChildren();
+                    
+                    // Use previousCursorPoint.line to find the correct paragraph directly
+                    if (previousCursorPoint.line >= 0 && previousCursorPoint.line < children.length) {
+                      const targetParagraph = children[previousCursorPoint.line];
+                      if (targetParagraph) {
+                        const targetParagraphKey = targetParagraph.getKey();
+                        const paragraphDOM = editor.getElementByKey(targetParagraphKey);
+                        
+                        if (paragraphDOM) {
+                          const blockRect = paragraphDOM.getBoundingClientRect();
+                          const blockStyle = window.getComputedStyle(paragraphDOM);
+                          const blockPaddingLeft = parseFloat(blockStyle.paddingLeft) || 0;
+                          const blockMarginLeft = parseFloat(blockStyle.marginLeft) || 0;
+                          const blockTextIndent = parseFloat(blockStyle.textIndent) || 0;
+                          const blockPaddingTop = parseFloat(blockStyle.paddingTop) || 0;
+                          const paragraphLineHeight = parseFloat(blockStyle.lineHeight) || parseFloat(computedStyle.lineHeight) || 28;
+                          
+                          return {
+                            left: blockRect.left + blockPaddingLeft + blockMarginLeft + blockTextIndent,
+                            top: blockRect.top + blockPaddingTop,
+                            height: paragraphLineHeight
+                          };
+                        }
+                      }
+                    }
+                    return null;
+                  });
+                  
+                  if (pointBasedPosition) {
+                    cursorElement.style.transform = `translate(${pointBasedPosition.left}px, ${pointBasedPosition.top}px)`;
+                    cursorElement.style.height = `${pointBasedPosition.height}px`;
+                    cursorElement.style.display = "block";
+                    
+                    previousLeft = pointBasedPosition.left;
+                    previousTop = pointBasedPosition.top;
+                    wasOnNonStartLine = true;
+                    isUsingLexicalPosition = false;
+                    lastLexicalPosition = null;
+                    lastParagraphKey = null;
+                    return;
+                  }
+                } catch (e) {
+                  // Fall through to Lexical method
+                }
+              }
+              
+              let lexicalDeletionPosition: { left: number; top: number; height: number } | null = null;
+              
+              // Try to get Lexical position first - it knows the correct paragraph
+              try {
+                editor.getEditorState().read(() => {
+                  const lexicalSelection = $getSelection();
+                  if (lexicalSelection && lexicalSelection.anchor) {
+                    const root = $getRoot();
+                    const children = root.getChildren();
+                    
+                    // Find current paragraph - try multiple methods
+                    let targetParagraphKey: string | null = null;
+                    const anchorKey = lexicalSelection.anchor.key;
+                    
+                    try {
+                      // Method 1: Walk up from anchor node to find paragraph
+                      const anchorNode = lexicalSelection.anchor.getNode();
+                      if (anchorNode) {
+                        let current: any = anchorNode;
+                        while (current) {
+                          const type = current.getType?.();
+                          if (type === 'paragraph') {
+                            targetParagraphKey = current.getKey();
+                            break;
+                          }
+                          current = current.getParent?.();
+                        }
+                      }
+                    } catch (e) {
+                      // Continue
+                    }
+                    
+                    // Method 2: Check if anchor key matches a paragraph directly
+                    if (!targetParagraphKey) {
+                      for (let i = 0; i < children.length; i++) {
+                        const child = children[i];
+                        if (child.getKey() === anchorKey) {
+                          targetParagraphKey = child.getKey();
+                          break;
+                        }
+                      }
+                    }
+                    
+                    // Method 3: Search through all paragraphs for text nodes containing the anchor
+                    if (!targetParagraphKey) {
+                      for (let i = 0; i < children.length; i++) {
+                        const child = children[i];
+                        const searchForTextNode = (node: any): boolean => {
+                          if (node.getKey() === anchorKey) return true;
+                          const type = node.getType?.();
+                          if (type === 'text' && node.getKey() === anchorKey) return true;
+                          const nodeChildren = node.getChildren ? node.getChildren() : [];
+                          return nodeChildren.some(searchForTextNode);
+                        };
+                        
+                        if (searchForTextNode(child)) {
+                          targetParagraphKey = child.getKey();
+                          break;
+                        }
+                      }
+                    }
+                    
+                    // Method 4: Use the last paragraph (most likely where you were typing)
+                    if (!targetParagraphKey && children.length > 0) {
+                      targetParagraphKey = children[children.length - 1].getKey();
+                    }
+                    
+                    if (targetParagraphKey) {
+                      const paragraphDOM = editor.getElementByKey(targetParagraphKey);
+                      if (paragraphDOM) {
+                        const blockRect = paragraphDOM.getBoundingClientRect();
+                        const blockStyle = window.getComputedStyle(paragraphDOM);
+                        const blockPaddingLeft = parseFloat(blockStyle.paddingLeft) || 0;
+                        const blockMarginLeft = parseFloat(blockStyle.marginLeft) || 0;
+                        const blockTextIndent = parseFloat(blockStyle.textIndent) || 0;
+                        const blockPaddingTop = parseFloat(blockStyle.paddingTop) || 0;
+                        const paragraphLineHeight = parseFloat(blockStyle.lineHeight) || parseFloat(computedStyle.lineHeight) || 28;
+                        
+                        // For soft breaks (Shift+Enter), use DOM position if valid and within the paragraph
+                        // This ensures cursor goes to the correct line within the paragraph, not just the top
+                        const isDOMWithinParagraph = rect.top >= blockRect.top && rect.top <= blockRect.bottom &&
+                                                     rect.left >= blockRect.left && rect.left <= blockRect.right;
+                        
+                        if (isDOMWithinParagraph && hasValidCoordinates) {
+                          // DOM position is valid and within the paragraph - use it for soft breaks
+                          lexicalDeletionPosition = {
+                            left: rect.left,
+                            top: rect.top,
+                            height: rect.height || paragraphLineHeight
+                          };
+                        } else {
+                          // Use paragraph position (for empty lines or when DOM is wrong)
+                          lexicalDeletionPosition = {
+                            left: blockRect.left + blockPaddingLeft + blockMarginLeft + blockTextIndent,
+                            top: blockRect.top + blockPaddingTop,
+                            height: paragraphLineHeight
+                          };
+                        }
+                      }
+                    }
+                  }
+                });
+              } catch (e) {
+                // Fall through to previousTop
+              }
+              
+              // ALWAYS use Lexical if available, otherwise use previousTop
+              // This ensures cursor stays on the correct line when deleting all text
+              if (lexicalDeletionPosition) {
+                cursorElement.style.transform = `translate(${lexicalDeletionPosition.left}px, ${lexicalDeletionPosition.top}px)`;
+                cursorElement.style.height = `${lexicalDeletionPosition.height}px`;
+                cursorElement.style.display = "block";
+                
+                previousLeft = lexicalDeletionPosition.left;
+                previousTop = lexicalDeletionPosition.top;
+                wasOnNonStartLine = true;
+                isUsingLexicalPosition = false;
+                lastLexicalPosition = null;
+                lastParagraphKey = null;
+                return;
+              }
+              
+              // Fallback: use savedLinePositionAfterEnter if available, otherwise use previousTop
+              // savedLinePositionAfterEnter is saved when typing after Enter, so it knows the correct line
+              const targetTop = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.top :
+                               (previousTop > 0 ? previousTop : (rootRect.top + paddingTop));
+              const targetLeft = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.left :
+                                (previousLeft > 0 ? previousLeft : (rootRect.left + paddingLeft));
+              const targetHeight = rect.height || lineHeight;
+              
+              // Only use saved/previous position if it's not the first line
+              if (targetTop > rootRect.top + paddingTop + 5) {
+                cursorElement.style.transform = `translate(${targetLeft}px, ${targetTop}px)`;
+                cursorElement.style.height = `${targetHeight}px`;
+                cursorElement.style.display = "block";
+                
+                // Update previousTop to maintain position (prevent drift)
+                previousLeft = targetLeft;
+                previousTop = targetTop;
+                wasOnNonStartLine = true;
+                isUsingLexicalPosition = false;
+                lastLexicalPosition = null;
+                lastParagraphKey = null;
+                return;
+              }
+            }
+            
             // VERY EARLY CHECK: Use Lexical position immediately when deleting text on a line
             // This ensures we get the correct paragraph position before any other logic interferes
             // PRIORITY CHECK 1: If previousTop was on a different line and DOM reports first line, ALWAYS use Lexical
             // This catches the case when you delete all text on a new line - stay on that line
-            const previousTopIsDifferent = previousTop > 0 && Math.abs(previousTop - (rootRect.top + paddingTop)) > 5;
             // isDOMAtFirstLine is already defined above, reuse it
             
             // If we were on a different line but DOM says first line, use Lexical immediately
@@ -414,13 +754,13 @@ export function LexicalCursorRenderer() {
             // SECOND CHECK: If we're at horizontal start (deleting text) and were on a different line
             // SIMPLE RULE: If we're at horizontal start OR padding edge (deleting text) AND previousTop was on a different line,
             // ALWAYS use Lexical or previousTop to maintain position on the correct line
-            const previousTopIsDifferent = previousTop > 0 && Math.abs(previousTop - (rootRect.top + paddingTop)) > 5;
-            const isAtHorizontalStart = Math.abs(rect.left - (rootRect.left + paddingLeft)) < 5;
+            // previousTopIsDifferent is already defined above, reuse it
+            // isAtStartHorizontal is already defined above, reuse it
             
             // Check if we're deleting text (horizontal start OR padding edge) and were on a different line
             // This should catch ALL cases when deleting all text on a line but staying on that line
-            // isAtPaddingEdge catches empty lines, isAtHorizontalStart catches lines with text being deleted
-            const isDeletingText = (isAtHorizontalStart || isAtPaddingEdge);
+            // isAtPaddingEdge catches empty lines, isAtStartHorizontal catches lines with text being deleted
+            const isDeletingText = (isAtStartHorizontal || isAtPaddingEdge);
             
             if (isDeletingText && previousTopIsDifferent && hasValidCoordinates && isWithinRootBounds) {
               // Try to get Lexical position for current paragraph immediately
@@ -757,11 +1097,27 @@ export function LexicalCursorRenderer() {
                         const blockPaddingTop = parseFloat(blockStyle.paddingTop) || 0;
                         const lineHeight = parseFloat(blockStyle.lineHeight) || parseFloat(computedStyle.lineHeight) || 28;
                         
-                        lexicalPosition = {
-                          left: blockRect.left + blockPaddingLeft + blockMarginLeft + blockTextIndent,
-                          top: blockRect.top + blockPaddingTop,
-                          height: lineHeight
-                        };
+                        // For soft breaks (Shift+Enter), use DOM position if valid and within the paragraph
+                        // This ensures cursor goes to the correct line within the paragraph, not just the top
+                        const isDOMWithinParagraph = hasValidCoordinates && isWithinRootBounds &&
+                                                     rect.top >= blockRect.top && rect.top <= blockRect.bottom &&
+                                                     rect.left >= blockRect.left && rect.left <= blockRect.right;
+                        
+                        if (isDOMWithinParagraph) {
+                          // DOM position is valid and within the paragraph - use it for soft breaks
+                          lexicalPosition = {
+                            left: rect.left,
+                            top: rect.top,
+                            height: rect.height || lineHeight
+                          };
+                        } else {
+                          // Use paragraph position (for empty lines or when DOM is wrong)
+                          lexicalPosition = {
+                            left: blockRect.left + blockPaddingLeft + blockMarginLeft + blockTextIndent,
+                            top: blockRect.top + blockPaddingTop,
+                            height: lineHeight
+                          };
+                        }
                       }
                     }
                   }
@@ -837,6 +1193,14 @@ export function LexicalCursorRenderer() {
                 isUsingLexicalPosition = true;
                 lastLexicalPosition = lexicalPosition;
                 lastParagraphKey = currentParagraphKey;
+                
+                // Save the line position after Enter - this helps maintain position when deleting
+                if (justPressedEnter) {
+                  savedLinePositionAfterEnter = {
+                    top: lexicalPosition.top,
+                    left: lexicalPosition.left
+                  };
+                }
                 return;
               }
               
@@ -913,7 +1277,8 @@ export function LexicalCursorRenderer() {
             // FINAL CHECK: If we're at horizontal start (deleting text) and were on a different line,
             // ALWAYS use previousTop to maintain position on the correct line
             // This is a final fallback before using DOM position to ensure cursor stays on same line
-            if (isAtStartHorizontal && previousTopIsDifferent && !isCloseToPreviousTop && previousTop > 0) {
+            // SIMPLIFIED: If at horizontal start and previousTop exists and is different, ALWAYS use it
+            if (isAtStartHorizontal && previousTopIsDifferent && previousTop > 0) {
               // We're deleting text on a line - use previousTop to stay on that line (like Enter behavior)
               const targetLeft = previousLeft > 0 ? previousLeft : (rootRect.left + paddingLeft);
               const targetTop = previousTop;
@@ -946,6 +1311,25 @@ export function LexicalCursorRenderer() {
               
               previousLeft = targetLeft;
               previousTop = targetTop;
+              
+              // If we're typing after Enter, update savedLinePositionAfterEnter with current position
+              // This ensures when we delete all text, we know which line we were on
+              if (savedLinePositionAfterEnter || justPressedEnter) {
+                savedLinePositionAfterEnter = {
+                  top: targetTop,
+                  left: targetLeft
+                };
+              } else if (savedLinePositionAfterEnter) {
+                // If we have a saved position but we're not on that line anymore, clear it
+                // Check if current position is significantly different (more than one line)
+                const lineHeight = parseFloat(computedStyle.lineHeight) || 28;
+                const distanceFromSaved = Math.abs(targetTop - savedLinePositionAfterEnter.top);
+                if (distanceFromSaved > lineHeight * 1.5) {
+                  // We've moved to a different line, clear the saved position
+                  savedLinePositionAfterEnter = null;
+                }
+              }
+              
               wasOnNonStartLine = true; // Track that we're not at start
               isUsingLexicalPosition = false; // Clear Lexical usage when using DOM
               lastLexicalPosition = null;
@@ -1005,6 +1389,91 @@ export function LexicalCursorRenderer() {
                 previousLeft = previousLeft;
                 previousTop = estimatedTop;
                 wasOnNonStartLine = true;
+                return;
+              }
+            }
+            
+            // FINAL AGGRESSIVE CHECK: If we're at horizontal start or padding edge AND previousTop is on different line,
+            // ALWAYS use Point-based tracking, savedLinePositionAfterEnter, or previousTop to maintain position
+            // This is the absolute last check before any fallback - ensures cursor stays on correct line
+            // Use Point-based tracking for improved precision - if previousCursorPoint exists and is on same line OR was on different line, trust it
+            if ((isAtStartHorizontal || isAtPaddingEdge) && 
+                (isOnSameLineAsPoint || wasOnDifferentLineFromPoint || previousTopIsDifferent || savedLinePositionAfterEnter !== null)) {
+              
+              // PRIORITY: Use Point-based tracking directly if we know we're on the same line OR if cursor jumped to first line but we were on different line
+              // This is the most reliable method - if previousCursorPoint exists and is on same line OR was on different line, use it
+              if ((isOnSameLineAsPoint || wasOnDifferentLineFromPoint) && previousCursorPoint !== null) {
+                try {
+                  const pointBasedPosition = editor.getEditorState().read(() => {
+                    const root = $getRoot();
+                    const children = root.getChildren();
+                    
+                    // Use previousCursorPoint.line to find the correct paragraph directly
+                    if (previousCursorPoint.line >= 0 && previousCursorPoint.line < children.length) {
+                      const targetParagraph = children[previousCursorPoint.line];
+                      if (targetParagraph) {
+                        const targetParagraphKey = targetParagraph.getKey();
+                        const paragraphDOM = editor.getElementByKey(targetParagraphKey);
+                        
+                        if (paragraphDOM) {
+                          const blockRect = paragraphDOM.getBoundingClientRect();
+                          const blockStyle = window.getComputedStyle(paragraphDOM);
+                          const blockPaddingLeft = parseFloat(blockStyle.paddingLeft) || 0;
+                          const blockMarginLeft = parseFloat(blockStyle.marginLeft) || 0;
+                          const blockTextIndent = parseFloat(blockStyle.textIndent) || 0;
+                          const blockPaddingTop = parseFloat(blockStyle.paddingTop) || 0;
+                          const paragraphLineHeight = parseFloat(blockStyle.lineHeight) || parseFloat(computedStyle.lineHeight) || 28;
+                          
+                          return {
+                            left: blockRect.left + blockPaddingLeft + blockMarginLeft + blockTextIndent,
+                            top: blockRect.top + blockPaddingTop,
+                            height: paragraphLineHeight
+                          };
+                        }
+                      }
+                    }
+                    return null;
+                  });
+                  
+                  if (pointBasedPosition && pointBasedPosition.top > rootRect.top + paddingTop + 5) {
+                    cursorElement.style.transform = `translate(${pointBasedPosition.left}px, ${pointBasedPosition.top}px)`;
+                    cursorElement.style.height = `${pointBasedPosition.height}px`;
+                    cursorElement.style.display = "block";
+                    
+                    previousLeft = pointBasedPosition.left;
+                    previousTop = pointBasedPosition.top;
+                    wasOnNonStartLine = true;
+                    isUsingLexicalPosition = false;
+                    lastLexicalPosition = null;
+                    lastParagraphKey = null;
+                    return;
+                  }
+                } catch (e) {
+                  // Fall through to savedLinePositionAfterEnter/previousTop
+                }
+              }
+              
+              // Fallback: use savedLinePositionAfterEnter or previousTop to stay on that line
+              // savedLinePositionAfterEnter is saved when typing after Enter, so it knows the correct line
+              const targetTop = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.top :
+                               (previousTop > 0 ? previousTop : (rootRect.top + paddingTop));
+              const targetLeft = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.left :
+                                (previousLeft > 0 ? previousLeft : (rootRect.left + paddingLeft));
+              const targetHeight = rect.height || lineHeight;
+              
+              // Only use saved/previous position if it's not the first line
+              if (targetTop > rootRect.top + paddingTop + 5) {
+                cursorElement.style.transform = `translate(${targetLeft}px, ${targetTop}px)`;
+                cursorElement.style.height = `${targetHeight}px`;
+                cursorElement.style.display = "block";
+                
+                // Update previousTop to maintain position (prevent drift)
+                previousLeft = targetLeft;
+                previousTop = targetTop;
+                wasOnNonStartLine = true;
+                isUsingLexicalPosition = false;
+                lastLexicalPosition = null;
+                lastParagraphKey = null;
                 return;
               }
             }
