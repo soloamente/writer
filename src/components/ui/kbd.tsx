@@ -13,15 +13,15 @@ const Kbd = React.forwardRef<HTMLDivElement, KbdProps>(
       <div
         ref={ref}
         className={cn(
-          "pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100",
-          className
+          "pointer-events-none inline-flex items-center gap-1 rounded border px-1.5 text-xs font-medium select-none",
+          className,
         )}
         {...props}
       >
         {children}
       </div>
     );
-  }
+  },
 );
 Kbd.displayName = "Kbd";
 
@@ -40,9 +40,8 @@ const KbdGroup = React.forwardRef<HTMLDivElement, KbdGroupProps>(
         {children}
       </div>
     );
-  }
+  },
 );
 KbdGroup.displayName = "KbdGroup";
 
 export { Kbd, KbdGroup };
-

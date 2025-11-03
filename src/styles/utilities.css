@@ -1,0 +1,449 @@
+/* ============================================ */
+/* Custom Utilities */
+/* ============================================ */
+
+@layer utilities {
+  /* Button active state */
+  .button {
+    transition: transform 150ms ease;
+  }
+  .button:active {
+    transform: scale(0.97);
+  }
+
+  /* Line clamp utilities for text truncation */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+}
+
+/* ============================================ */
+/* Modern Design Enhancements */
+/* ============================================ */
+
+/* Smooth scrolling */
+html,
+body {
+  height: 100%;
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better focus rings */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Card hover effects */
+.hover-lift {
+  transition:
+    transform 0.2s ease-in-out,
+    box-shadow 0.2s ease-in-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* Subtle animations for cards */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Better backdrop blur support */
+@supports (backdrop-filter: blur(12px)) {
+  .backdrop-blur-custom {
+    backdrop-filter: blur(12px) saturate(180%);
+  }
+}
+
+/* ============================================ */
+/* Custom Scrollbar Styling */
+/* ============================================ */
+
+/* Remove global scrollbar styles to prevent conflicts */
+
+/* ============================================ */
+/* Simple Working Scrollbar */
+/* ============================================ */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 4px !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 4px !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(var(--card)) !important;
+}
+
+/* Dark mode */
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--background)) !important;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--accent) !important;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--primary) !important;
+}
+
+/* ============================================ */
+/* Background-themed Scrollbar */
+/* ============================================ */
+
+/* Custom scrollbar for containers with bg-background */
+.scrollbar-bg-background {
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  scrollbar-width: thin;
+}
+
+.scrollbar-bg-background::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-bg-background::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.2);
+  border-radius: 6px;
+}
+
+.scrollbar-bg-background::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 6px;
+  border: 1px solid hsl(var(--muted) / 0.1);
+  transition: background 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scrollbar-bg-background::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
+
+.scrollbar-bg-background::-webkit-scrollbar-corner {
+  background: hsl(var(--muted) / 0.2);
+}
+
+/* Firefox support for background-themed scrollbar */
+.scrollbar-bg-background {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.2) hsl(var(--muted) / 0.2);
+}
+
+/* ============================================ */
+/* Card-themed Scrollbar */
+/* ============================================ */
+
+/* Custom scrollbar for containers with bg-card */
+.scrollbar-bg-card {
+  scrollbar-width: thin !important;
+}
+
+.scrollbar-bg-card::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.scrollbar-bg-card::-webkit-scrollbar-track {
+  background: hsl(var(--card) / 0.3) !important;
+  border-radius: 6px !important;
+}
+
+.scrollbar-bg-card::-webkit-scrollbar-thumb {
+  background: hsl(var(--card-foreground) / 0.2) !important;
+  border-radius: 6px !important;
+  border: 1px solid hsl(var(--card) / 0.2) !important;
+  transition: background 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.scrollbar-bg-card::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--card-foreground) / 0.4) !important;
+}
+
+.scrollbar-bg-card::-webkit-scrollbar-corner {
+  background: hsl(var(--card) / 0.3) !important;
+}
+
+/* Firefox support for card-themed scrollbar */
+.scrollbar-bg-card {
+  scrollbar-width: thin !important;
+  scrollbar-color: hsl(var(--card-foreground) / 0.2) hsl(var(--card) / 0.3) !important;
+}
+
+/* ============================================ */
+/* Universal Custom Scrollbar */
+/* ============================================ */
+
+/* Universal custom scrollbar that works in any context */
+.scrollbar-custom {
+  scrollbar-width: thin !important;
+  scrollbar-color: #cbd5e1 #f1f5f9 !important;
+}
+
+.scrollbar-custom::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 6px !important;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 6px !important;
+  border: 1px solid #e2e8f0 !important;
+  transition: background 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+.scrollbar-custom::-webkit-scrollbar-corner {
+  background: #f1f5f9 !important;
+}
+
+/* Dark mode adjustments for universal scrollbar */
+.dark .scrollbar-custom {
+  scrollbar-color: #475569 #1e293b !important;
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-track {
+  background: #1e293b !important;
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+  border: 1px solid #334155 !important;
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: #64748b !important;
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-corner {
+  background: #1e293b !important;
+}
+
+/* ============================================ */
+/* Force Custom Scrollbar */
+/* ============================================ */
+
+/* Very specific selector to force custom scrollbar */
+.bg-background.scrollbar-custom::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.bg-background.scrollbar-custom::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 6px !important;
+}
+
+.bg-background.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 6px !important;
+  border: 1px solid #e2e8f0 !important;
+  transition: background 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.bg-background.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+.bg-background.scrollbar-custom::-webkit-scrollbar-corner {
+  background: #f1f5f9 !important;
+}
+
+/* Dark mode for forced scrollbar */
+.dark .bg-background.scrollbar-custom::-webkit-scrollbar-track {
+  background: #1e293b !important;
+}
+
+.dark .bg-background.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+  border: 1px solid #334155 !important;
+}
+
+.dark .bg-background.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: #64748b !important;
+}
+
+.dark .bg-background.scrollbar-custom::-webkit-scrollbar-corner {
+  background: #1e293b !important;
+}
+
+/* ============================================ */
+/* Scroll Animation */
+/* ============================================ */
+
+.scroller-out {
+  /* Scroll masking with fade at top and bottom */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    var(--background) 150px,
+    var(--background) calc(100% - 150px),
+    transparent 100%
+  );
+  mask-size: 100% 200%;
+  mask-repeat: no-repeat;
+  mask-position: 0 0;
+
+  /* Animation - animate mask-position to smoothly hide bottom fade */
+  animation: scroll-fade-out;
+  animation-timeline: scroll(self);
+  animation-range: entry 0% exit 100%;
+}
+
+@keyframes scroll-fade-out {
+  from {
+    mask-position: 0 100%;
+  }
+  to {
+    mask-position: 0 0;
+  }
+}
+
+.scroller-in {
+  /* Scroll masking with fade at top only */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    var(--background) 150px,
+    var(--background) 100%
+  );
+  mask-size: 100% 200%;
+  mask-repeat: no-repeat;
+  mask-position: 0 0;
+
+  /* Animation - animate mask-position to smoothly hide top fade */
+  animation: scroll-fade-in;
+  animation-timeline: scroll(self);
+  animation-range: entry 0% exit 100%;
+}
+
+@keyframes scroll-fade-in {
+  from {
+    mask-position: 0 0;
+  }
+  to {
+    mask-position: 0 -100%;
+  }
+}
+
+.scroller {
+  animation: mask-up;
+  animation-timeline: scroll(self);
+  animation-range: 0 1rem;
+  mask-composite: exclude;
+}
+
+@keyframes mask-up {
+  to {
+    mask-size:
+      100% 120px,
+      100% 100%;
+  }
+}
+
+/* ============================================ */
+/* Selection and Text Rendering */
+/* ============================================ */
+
+/* Selection styling */
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}
+
+/* Better text rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ============================================ */
+/* Button and Card Shadows */
+/* ============================================ */
+
+/* Improved button transitions */
+button {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Card shadows for depth */
+.card-shadow {
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.card-shadow-lg {
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* Dark mode shadow adjustments */
+.dark .card-shadow {
+  box-shadow:
+    0 2px 4px 0 rgb(0 0 0 / 0.2),
+    0 1px 2px -1px rgb(0 0 0 / 0.2);
+}
+
+.dark .card-shadow-lg {
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.3),
+    0 4px 6px -4px rgb(0 0 0 / 0.3);
+}

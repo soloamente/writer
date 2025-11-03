@@ -9,6 +9,7 @@
 /* Custom CSS modules */
 @import "./lexical.css";
 @import "./checkbox.css";
+@import "./utilities.css";
 
 /* ============================================ */
 /* Theme Configuration */
@@ -238,6 +239,24 @@
     }
   }
 
+  /* Set default text color for command items and ensure opacity is 1 */
+  [cmdk-item] {
+    opacity: 1 !important;
+  }
+
+  /* Ensure all child elements inherit the color and maintain full opacity */
+  [cmdk-item] *,
+  [cmdk-item] span,
+  [cmdk-item] svg {
+    opacity: 1 !important;
+  }
+
+  /* Override any opacity on selected items too */
+  [cmdk-item][aria-selected="true"],
+  [cmdk-item][aria-selected="true"] * {
+    opacity: 1 !important;
+  }
+
   /* Rounded underline utility */
   .underline-rounded {
     padding: 2px 0;
@@ -276,15 +295,6 @@
   .underline-rounded:hover {
     --underline-color: darkgray;
   }
-}
-
-html,
-body {
-  height: 100%;
-  min-height: 100%;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
 
 /* ============================================ */
