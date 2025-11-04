@@ -18,6 +18,10 @@
   display: block;
   box-sizing: border-box;
   min-height: 60vh;
+  /* Define padding CSS custom properties here so both ContentEditable and placeholder can use them */
+  --editor-padding-top: 2rem;
+  --editor-padding-left: 4rem;
+  --editor-padding-right: 4rem;
 }
 
 [data-lexical-editor] {
@@ -31,8 +35,8 @@
   display: block;
   box-sizing: border-box;
   position: relative;
-  /* Hide default browser caret when custom cursor is active */
-  caret-color: transparent !important;
+  /* Default caret enabled - custom cursor disabled */
+  /* caret-color: transparent !important; */
 }
 
 /* Ensure ContentEditable element matches .editor dimensions exactly */
@@ -43,11 +47,15 @@
   width: 100% !important;
   min-height: 60vh !important;
   box-sizing: border-box !important;
-  padding: 2rem 4rem !important;
+  /* Use CSS custom properties for padding to match placeholder */
+  --editor-padding-top: 2rem;
+  --editor-padding-left: 4rem;
+  --editor-padding-right: 4rem;
+  padding: var(--editor-padding-top) var(--editor-padding-right) var(--editor-padding-top) var(--editor-padding-left) !important;
   /* Center the content */
   margin: 0 auto !important;
-  /* Hide default browser caret when custom cursor is active */
-  caret-color: transparent !important;
+  /* Default caret enabled - custom cursor disabled */
+  /* caret-color: transparent !important; */
 }
 
 [data-lexical-editor] p {
@@ -55,17 +63,17 @@
   margin: 0 0 0.8em 0;
 }
 
-/* Hide default browser caret completely when custom cursor is active */
-[data-lexical-editor] *,
+/* Default caret enabled - custom cursor disabled */
+/* [data-lexical-editor] *,
 [data-lexical-editor] *::before,
 [data-lexical-editor] *::after {
   caret-color: transparent !important;
-}
+} */
 
-.lexical-content-editable,
+/* .lexical-content-editable,
 .lexical-content-editable * {
   caret-color: transparent !important;
-}
+} */
 
 /* For mobile */
 .floating-threads {
@@ -91,17 +99,31 @@
   }
 }
 
+/* Placeholder positioned to match ContentEditable's text area */
+/* In Lexical RichTextPlugin, placeholder is a sibling of [data-lexical-editor] */
+/* Both are children of the wrapper, so placeholder is positioned relative to wrapper */
 .placeholder {
   position: absolute;
-  /* Overlay the ContentEditable - match .lexical-content-editable padding to align with text content */
-  top: 2rem;
-  left: 4rem;
-  right: 4rem;
+  /* Match ContentEditable's padding exactly - text appears inside the padding */
+  top: var(--editor-padding-top, 2rem);
+  left: var(--editor-padding-left, 4rem);
+  right: var(--editor-padding-right, 4rem);
   pointer-events: none;
   opacity: 0.5;
   color: var(--muted-foreground);
   user-select: none;
   white-space: nowrap;
+  z-index: 1;
+  /* Match font properties exactly to align with text */
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  /* Remove any spacing that might offset it */
+  margin: 0;
+  padding: 0;
+  /* Ensure it's positioned correctly relative to the wrapper */
+  transform: none;
 }
 
 /* ============================================ */
@@ -359,6 +381,24 @@
 .editor-heading-h5::selection,
 .editor-heading-h6::selection,
 .editor-quote::selection {
+  background-color: var(--chart-1);
+  color: var(--background);
+}
+
+/* Selection styling for Lexical editor content */
+[data-lexical-editor]::selection,
+[data-lexical-editor] *::selection,
+.lexical-content-editable::selection,
+.lexical-content-editable *::selection {
+  background-color: var(--chart-1);
+  color: var(--background);
+}
+
+/* Dark mode selection */
+.dark [data-lexical-editor]::selection,
+.dark [data-lexical-editor] *::selection,
+.dark .lexical-content-editable::selection,
+.dark .lexical-content-editable *::selection {
   background-color: var(--chart-1);
   color: var(--background);
 }

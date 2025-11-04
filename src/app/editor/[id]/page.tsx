@@ -1,32 +1,35 @@
+import { Suspense } from "react";
 import { Room } from "@/app/editor/Room";
 import { Editor } from "@/app/editor/_components/editor";
 import { CommandPalette } from "@/app/editor/_components/CommandPalette";
-import { auth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
-export default async function EditorByIdPage({
-  params,
+async function EditorContent({
+  documentId,
 }: {
-  params: Promise<{ id: string }>;
+  documentId: string;
 }) {
+  const { auth } = await import("@/lib/auth");
+  const prisma = (await import("@/lib/prisma")).default;
+  const { headers } = await import("next/headers");
+  const { redirect } = await import("next/navigation");
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/sign-in");
 
-  const { id } = await params;
-  if (!id) redirect("/editor");
+  // TypeScript: session.user is guaranteed to exist after the check above
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const userId = session!.user!.id;
 
   // Check if user owns the document or has access via membership
   const [doc, membership] = await Promise.all([
     prisma.document.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id: documentId, userId },
       select: { id: true, content: true, title: true },
     }),
     prisma.documentMember.findFirst({
       where: {
-        documentId: id,
-        userId: session.user.id,
+        documentId: documentId,
+        userId,
       },
       include: {
         document: {
@@ -62,6 +65,43 @@ export default async function EditorByIdPage({
         canWrite={canWrite}
       />
     </Room>
+  );
+}
+
+async function DocumentIdLoader({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { redirect } = await import("next/navigation");
+  const { id } = await params;
+  if (!id) redirect("/editor");
+
+  return <EditorContent documentId={id} />;
+}
+
+export default function EditorByIdPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Suspense fallback={<EditorSkeleton />}>
+      <DocumentIdLoader params={params} />
+    </Suspense>
+  );
+}
+
+function EditorSkeleton() {
+  return (
+    <div className="flex h-screen flex-col">
+      <div className="flex-1 p-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-4 h-8 w-48 animate-pulse rounded bg-base-300" />
+          <div className="h-96 w-full animate-pulse rounded bg-base-200" />
+        </div>
+      </div>
+    </div>
   );
 }
 

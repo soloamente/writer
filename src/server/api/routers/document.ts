@@ -10,15 +10,61 @@ export const documentRouter = createTRPCRouter({
         title: z.string().trim().min(1).max(200).optional(),
       }),
     )
-    .mutation(async ({ ctx }) => {
+    .mutation(async ({ input, ctx }) => {
       const session = await auth.api.getSession({ headers: ctx.headers });
       if (!session?.user) {
         throw new Error("Unauthorized");
       }
+
+      // If no title provided, generate next available "Untitled N" title
+      let finalTitle = input.title;
+      if (!finalTitle) {
+        // Get all documents owned by the user
+        const userDocs = await prisma.document.findMany({
+          where: { userId: session.user.id },
+          select: { title: true },
+        });
+
+        // Extract all "Untitled" titles and their numbers
+        const untitledPattern = /^Untitled(\s+(\d+))?$/i;
+        const untitledNumbers: number[] = [];
+
+        for (const doc of userDocs) {
+          const match = doc.title.match(untitledPattern);
+          if (match) {
+            if (match[2]) {
+              // Has a number (e.g., "Untitled 2")
+              untitledNumbers.push(parseInt(match[2], 10));
+            } else {
+              // Just "Untitled" (counts as 1)
+              untitledNumbers.push(1);
+            }
+          }
+        }
+
+        // Find the next available number
+        if (untitledNumbers.length === 0) {
+          // No untitled documents exist, use "Untitled"
+          finalTitle = "Untitled";
+        } else {
+          // Sort numbers and find the first gap or next number
+          untitledNumbers.sort((a, b) => a - b);
+          let nextNumber = 1;
+          for (const num of untitledNumbers) {
+            if (num === nextNumber) {
+              nextNumber++;
+            } else {
+              break;
+            }
+          }
+          finalTitle = nextNumber === 1 ? "Untitled" : `Untitled ${nextNumber}`;
+        }
+      }
+
       const doc = await prisma.document.create({
         data: {
           userId: session.user.id,
-          title: "Untitled",
+          title: finalTitle,
           content: {},
         },
         select: { id: true, title: true, updatedAt: true },
@@ -32,7 +78,7 @@ export const documentRouter = createTRPCRouter({
       throw new Error("Unauthorized");
     }
     // Get both owned documents and shared documents
-    const [ownedDocs, sharedMembers] = await Promise.all([
+    const [ownedDocs, sharedMembers, favoriteMemberships] = await Promise.all([
       prisma.document.findMany({
         where: { userId: session.user.id },
         orderBy: { updatedAt: "desc" },
@@ -47,7 +93,12 @@ export const documentRouter = createTRPCRouter({
       }),
       prisma.documentMember.findMany({
         where: { userId: session.user.id },
-        include: {
+        select: {
+          id: true,
+          documentId: true,
+          userId: true,
+          role: true,
+          favorite: true,
           document: {
             select: {
               id: true,
@@ -60,19 +111,37 @@ export const documentRouter = createTRPCRouter({
           },
         },
       }),
+      // Get favorite memberships for owned documents (where user favorites their own doc)
+      prisma.documentMember.findMany({
+        where: {
+          userId: session.user.id,
+          favorite: true,
+          document: {
+            userId: session.user.id, // Owned documents
+          },
+        },
+        select: { documentId: true },
+      }),
     ]);
 
-    // Format owned docs with isOwner flag
+    // Create a Set of favorite document IDs for owned documents
+    const favoriteOwnedSet = new Set(
+      favoriteMemberships.map((m) => m.documentId),
+    );
+
+    // Format owned docs with isOwner flag and isFavorite
     const owned = ownedDocs.map((doc) => ({
       ...doc,
       isOwner: true,
+      isFavorite: favoriteOwnedSet.has(doc.id),
     }));
 
-    // Format shared docs with isOwner flag and role
+    // Format shared docs with isOwner flag, role, and isFavorite
     const shared = sharedMembers.map((member) => ({
       ...member.document,
       isOwner: false,
       role: member.role,
+      isFavorite: member.favorite,
     }));
 
     // Combine and sort by updatedAt
@@ -349,6 +418,99 @@ export const documentRouter = createTRPCRouter({
       });
 
       return members;
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const session = await auth.api.getSession({ headers: ctx.headers });
+      if (!session?.user) {
+        throw new Error("Unauthorized");
+      }
+
+      // Verify user owns the document
+      const doc = await prisma.document.findFirst({
+        where: { id: input.id, userId: session.user.id },
+        select: { id: true },
+      });
+
+      if (!doc) {
+        throw new Error("Document not found or access denied");
+      }
+
+      // Delete the document (cascade will handle related records)
+      await prisma.document.delete({
+        where: { id: input.id },
+      });
+
+      return { success: true };
+    }),
+
+  toggleFavorite: publicProcedure
+    .input(
+      z.object({
+        documentId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const session = await auth.api.getSession({ headers: ctx.headers });
+      if (!session?.user) {
+        throw new Error("Unauthorized");
+      }
+
+      // Check if user owns the document or has access via membership
+      const [doc, membership] = await Promise.all([
+        prisma.document.findFirst({
+          where: { id: input.documentId, userId: session.user.id },
+          select: { id: true },
+        }),
+        prisma.documentMember.findUnique({
+          where: {
+            documentId_userId: {
+              documentId: input.documentId,
+              userId: session.user.id,
+            },
+          },
+          select: { favorite: true },
+        }),
+      ]);
+
+      // Verify user has access (either owns the document or has membership)
+      if (!doc && membership === null) {
+        throw new Error("Document not found or access denied");
+      }
+
+      // If membership exists (for shared docs or owner's favorite entry), update it
+      if (membership !== null) {
+        const updated = await prisma.documentMember.update({
+          where: {
+            documentId_userId: {
+              documentId: input.documentId,
+              userId: session.user.id,
+            },
+          },
+          data: {
+            favorite: !membership.favorite,
+          },
+        });
+        return { isFavorite: updated.favorite };
+      }
+
+      // If user owns the document but no membership exists, create one for favorite
+      if (doc) {
+        const created = await prisma.documentMember.create({
+          data: {
+            documentId: input.documentId,
+            userId: session.user.id,
+            role: "read", // Default role for owner's favorite entry
+            invitedBy: session.user.id,
+            favorite: true,
+          },
+        });
+        return { isFavorite: created.favorite };
+      }
+
+      throw new Error("Unexpected error");
     }),
 });
 

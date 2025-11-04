@@ -107,6 +107,7 @@ model DocumentMember {
   role       String   @default("read")
   invitedBy  String
   createdAt  DateTime @default(now())
+  favorite   Boolean  @default(false)
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

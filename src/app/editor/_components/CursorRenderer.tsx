@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   Cursor,
   Point,
   elements,
-  editor as editorState,
 } from "@/lib/writer";
 import { pointToXY } from "@/lib/writer/utils";
+import { useEditorStore, editorStoreActions } from "@/lib/writer/store";
 
 interface CursorRendererProps {
   /**
@@ -156,40 +156,27 @@ export function CursorRenderer({
 
 /**
  * Hook to manage and render cursors
+ * Uses the reactive store pattern - only re-renders when cursors change
+ * No more polling - this is much more efficient!
  */
 export function useCursorRenderer(editorElement: HTMLElement | null) {
-  const [cursors, setCursors] = useState<Cursor[]>([]);
+  // Use the reactive store - only re-renders when cursors array changes
+  const editorState = useEditorStore();
 
-  // Sync with editor state
-  useEffect(() => {
-    const updateCursors = () => {
-      setCursors([...editorState.cursors]);
-    };
-
-    // Initial update
-    updateCursors();
-
-    // Set up interval to check for cursor changes
-    // TODO: Use a more efficient state management system
-    const interval = setInterval(updateCursors, 16); // ~60fps
-
-    return () => clearInterval(interval);
-  }, []);
+  // Access cursors - this component will only re-render when cursors change
+  const cursors = editorState.cursors;
 
   return {
     cursors,
     addCursor: (point?: Point) => {
       const cursor = new Cursor({ point });
-      editorState.cursors.push(cursor);
-      setCursors([...editorState.cursors]);
+      // Use store action to trigger re-renders properly
+      editorStoreActions.addCursor(cursor);
       return cursor;
     },
     removeCursor: (cursorId: string) => {
-      const index = editorState.cursors.findIndex((c) => c.id === cursorId);
-      if (index > -1) {
-        editorState.cursors.splice(index, 1);
-        setCursors([...editorState.cursors]);
-      }
+      // Use store action to trigger re-renders properly
+      editorStoreActions.removeCursor(cursorId);
     },
   };
 }

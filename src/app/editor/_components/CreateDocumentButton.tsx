@@ -43,5 +43,3 @@ export function CreateDocumentButton() {
     </button>
   );
 }
-
-

@@ -17,9 +17,18 @@ import {
 import { Threads } from "@/app/editor/_components/threads";
 import { editorTheme } from "@/app/editor/_components/editorTheme";
 import { CursorPlugin } from "@/app/editor/_components/CursorPlugin";
+import { TailwindExtension } from "@lexical/tailwind";
 import { api } from "@/trpc/react";
 import { useMemo, useRef, useEffect, useState } from "react";
 import { toast } from "sonner";
+// Import standard Lexical nodes required by RichTextPlugin
+import { HeadingNode, QuoteNode } from "@lexical/rich-text";
+import { ListNode, ListItemNode } from "@lexical/list";
+import { LinkNode, AutoLinkNode } from "@lexical/link";
+import { CodeNode, CodeHighlightNode } from "@lexical/code";
+import { ParagraphNode } from "lexical";
+import { EditorCommandsPlugin } from "./EditorCommandsPlugin";
+import { KeyboardCommandsPlugin } from "./KeyboardCommandsPlugin";
 
 // Plugin to track and manage editable state
 function EditableStatePlugin({
@@ -102,6 +111,20 @@ export function getEditMode(documentId: string): boolean | null {
   return editor ? editor.isEditable() : null;
 }
 
+// Function to get the first available editor instance
+// Useful for global commands that don't have a specific documentId
+export function getFirstAvailableEditor(): LexicalEditor | null {
+  // Return the first editor in the registry
+  // In a multi-document app, this returns the most recently registered editor
+  const editors = Array.from(editorRefContext.values());
+  return editors.length > 0 ? editors[editors.length - 1] : null;
+}
+
+// Function to get all registered document IDs
+export function getAllDocumentIds(): string[] {
+  return Array.from(editorRefContext.keys());
+}
+
 export function Editor({
   documentId,
   initialContent,
@@ -119,7 +142,19 @@ export function Editor({
     // @ts-expect-error - liveblocksConfig wraps the config, editorState is valid but not in types
     editorState: initialContent ?? undefined,
     editable: canWrite, // Initialize editable state based on permissions
-    theme: editorTheme, // Apply comprehensive theme configuration
+    theme: editorTheme, // Apply custom theme configuration with heading sizes
+    // Register standard Lexical nodes required by RichTextPlugin
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      LinkNode,
+      AutoLinkNode,
+      CodeNode,
+      CodeHighlightNode,
+      ParagraphNode,
+    ],
     onError: (error: Error) => {
       console.error(error);
       throw error;
@@ -212,11 +247,16 @@ export function Editor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="editor">
+      <div className="editor relative">
         <EditorRegistrationPlugin docId={documentId} />
         <EditableStatePlugin
           canWrite={canWrite}
           onEditableChange={setIsEditable}
+        />
+        <KeyboardCommandsPlugin />
+        <EditorCommandsPlugin
+          documentId={documentId}
+          canWrite={canWrite}
         />
         <RichTextPlugin
           contentEditable={
@@ -238,7 +278,11 @@ export function Editor({
         <AutoFocusPlugin />
         <HistoryPlugin />
         <LexicalOnChangePlugin onChange={handleChange} />
-        <CursorPlugin enabled={isEditable} />
+        {/* Custom cursor disabled - using default caret */}
+        {/* <CursorPlugin enabled={isEditable} /> */}
+        {/* LiveblocksPlugin requires collaboration context from liveblocksConfig */}
+        {/* The liveblocksConfig should set up CollaborationPlugin internally */}
+        {/* Note: May have compatibility issues with Lexical 0.38.2 vs expected 0.24.0 */}
         <LiveblocksPlugin>
           <Threads />
           <FloatingToolbar />

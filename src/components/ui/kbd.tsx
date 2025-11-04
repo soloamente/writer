@@ -1,47 +1,26 @@
-"use client";
+import { cn } from "@/lib/utils"
 
-import * as React from "react";
-import { cn } from "@/lib/utils";
-
-export interface KbdProps extends React.HTMLAttributes<HTMLDivElement> {
-  children?: React.ReactNode;
+function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
+  return (
+    <kbd
+      data-slot="kbd"
+      className={cn(
+        "pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 rounded bg-muted px-1 font-sans text-xs font-medium text-muted-foreground select-none [&_svg:not([class*='size-'])]:size-3",
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
-const Kbd = React.forwardRef<HTMLDivElement, KbdProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "pointer-events-none inline-flex items-center gap-1 rounded border px-1.5 text-xs font-medium select-none",
-          className,
-        )}
-        {...props}
-      >
-        {children}
-      </div>
-    );
-  },
-);
-Kbd.displayName = "Kbd";
-
-export interface KbdGroupProps extends React.HTMLAttributes<HTMLDivElement> {
-  children?: React.ReactNode;
+function KbdGroup({ className, ...props }: React.ComponentProps<"kbd">) {
+  return (
+    <kbd
+      data-slot="kbd-group"
+      className={cn("inline-flex items-center gap-1", className)}
+      {...props}
+    />
+  )
 }
 
-const KbdGroup = React.forwardRef<HTMLDivElement, KbdGroupProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn("flex items-center gap-1", className)}
-        {...props}
-      >
-        {children}
-      </div>
-    );
-  },
-);
-KbdGroup.displayName = "KbdGroup";
-
-export { Kbd, KbdGroup };
+export { Kbd, KbdGroup }
