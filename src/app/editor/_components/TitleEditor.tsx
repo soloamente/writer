@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/trpc/react";
-import { toast } from "sonner";
+import { toastManager } from "@/components/ui/toast";
 
 export function TitleEditor({
   documentId,
@@ -19,12 +19,16 @@ export function TitleEditor({
 
   const updateMutation = api.document.updateTitle.useMutation({
     onError: (error) => {
-      toast.error(error.message ?? "Failed to save title");
+      toastManager.add({
+        title: error.message ?? "Failed to save title",
+        type: "error",
+      });
     },
     onSuccess: () => {
-      toast.success("Title saved", {
-        id: `title-saved-${documentId}`,
-        duration: 1500,
+      toastManager.add({
+        title: "Title saved",
+        type: "success",
+        timeout: 1500,
       });
     },
   });

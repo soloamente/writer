@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { api } from "@/trpc/react";
-import { toast } from "sonner";
+import { toastManager } from "@/components/ui/toast";
 import { Command } from "cmdk";
 import { FaPen, FaEye, FaPlus, FaChevronDown, FaCheck } from "react-icons/fa6";
 import { AnimatePresence, motion } from "motion/react";
@@ -29,7 +29,10 @@ export function InviteUserButton({
   const utils = api.useUtils?.();
   const inviteMutation = api.document.inviteUser.useMutation({
     onSuccess: () => {
-      toast.success("User invited successfully");
+      toastManager.add({
+        title: "User invited successfully",
+        type: "success",
+      });
       setEmail("");
       setIsOpen(false);
       setShowRoleOptions(false);
@@ -37,7 +40,10 @@ export function InviteUserButton({
       void utils?.document.getAll.invalidate();
     },
     onError: (error: { message?: string }) => {
-      toast.error(error?.message ?? "Failed to invite user. Please try again.");
+      toastManager.add({
+        title: error?.message ?? "Failed to invite user. Please try again.",
+        type: "error",
+      });
     },
   });
 
@@ -75,7 +81,10 @@ export function InviteUserButton({
 
     // First check basic format for immediate feedback
     if (!isValidEmailFormat(trimmedEmail)) {
-      toast.error("Please enter a valid email address");
+      toastManager.add({
+        title: "Please enter a valid email address",
+        type: "error",
+      });
       return;
     }
 
@@ -83,17 +92,19 @@ export function InviteUserButton({
     const validationResult = await validateEmail(trimmedEmail);
 
     if (!validationResult.valid) {
-      toast.error(
-        validationResult.reason ?? "Please enter a valid email address",
-      );
+      toastManager.add({
+        title: validationResult.reason ?? "Please enter a valid email address",
+        type: "error",
+      });
       return;
     }
 
     // Warn about disposable emails but allow them
     if (validationResult.disposable) {
-      toast.warning(
-        "This email address appears to be from a disposable email service",
-      );
+      toastManager.add({
+        title: "This email address appears to be from a disposable email service",
+        type: "warning",
+      });
     }
 
     inviteMutation.mutate({ documentId, userEmail: trimmedEmail, role });

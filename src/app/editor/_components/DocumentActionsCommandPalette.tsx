@@ -18,7 +18,7 @@ import {
 } from "react-icons/fa6";
 import { Search } from "lucide-react";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { toast } from "sonner";
+import { toastManager } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
 import { dispatchOpenDocumentActions } from "@/lib/lexical/command-helpers";
 
@@ -88,26 +88,36 @@ export function DocumentActionsCommandPalette() {
 
   const deleteMutation = api.document.delete.useMutation({
     onSuccess: () => {
-      toast.success("Document deleted");
+      toastManager.add({
+        title: "Document deleted",
+        type: "success",
+      });
       void utils?.document.getAll.invalidate();
       setOpen(false);
       setSelectedDocumentId(null);
       router.push("/editor");
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to delete document");
+      toastManager.add({
+        title: error.message ?? "Failed to delete document",
+        type: "error",
+      });
     },
   });
 
   const toggleFavoriteMutation = api.document.toggleFavorite.useMutation({
     onSuccess: (data) => {
-      toast.success(
-        data.isFavorite ? "Document favorited" : "Document unfavorited",
-      );
+      toastManager.add({
+        title: data.isFavorite ? "Document favorited" : "Document unfavorited",
+        type: "success",
+      });
       void utils?.document.getAll.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to update favorite");
+      toastManager.add({
+        title: error.message ?? "Failed to update favorite",
+        type: "error",
+      });
     },
   });
 
@@ -165,7 +175,10 @@ export function DocumentActionsCommandPalette() {
 
   const handleDelete = (docId: string, isOwner: boolean) => {
     if (!isOwner) {
-      toast.error("Only document owners can delete documents");
+      toastManager.add({
+        title: "Only document owners can delete documents",
+        type: "error",
+      });
       return;
     }
     if (

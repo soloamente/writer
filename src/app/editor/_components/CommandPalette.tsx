@@ -47,14 +47,15 @@ import {
   FaUser,
 } from "react-icons/fa6";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { toast } from "sonner";
+import { toastManager } from "@/components/ui/toast";
 import { toggleEditMode, getEditMode, getEditorInstance } from "@/app/editor/_components/editor";
 import { TOGGLE_EDIT_MODE_COMMAND } from "@/lib/lexical/commands";
 import { InviteUserButton } from "@/app/editor/_components/InviteUserButton";
 import { Spinner } from "@/components/ui/spinner";
 import { AnimatePresence, motion } from "motion/react";
 import { isValidEmailFormat, validateEmail } from "@/lib/email-validation";
-import { FaChevronDown, FaCheck, FaXmark } from "react-icons/fa6";
+import { FaChevronDown, FaCheck, FaXmark, FaRightFromBracket } from "react-icons/fa6";
+import { useSession, signOut } from "@/lib/auth-client";
 
 interface CommandPaletteProps {
   documentId: string;
@@ -122,10 +123,16 @@ export function CommandPalette({
 
   const utils = api.useUtils?.();
   const inviteMutation = api.document.inviteUser.useMutation();
+  
+  // Get user session for account info
+  const { data: session } = useSession();
 
   const deleteMutation = api.document.delete.useMutation({
     onSuccess: () => {
-      toast.success("Document deleted");
+      toastManager.add({
+        title: "Document deleted",
+        type: "success",
+      });
       void utils?.document.getAll.invalidate();
       setShowDocumentActions(false);
       setSelectedDocumentForActions(null);
@@ -133,19 +140,26 @@ export function CommandPalette({
       router.push("/editor");
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to delete document");
+      toastManager.add({
+        title: error.message ?? "Failed to delete document",
+        type: "error",
+      });
     },
   });
 
   const toggleFavoriteMutation = api.document.toggleFavorite.useMutation({
     onSuccess: (data) => {
-      toast.success(
-        data.isFavorite ? "Document favorited" : "Document unfavorited",
-      );
+      toastManager.add({
+        title: data.isFavorite ? "Document favorited" : "Document unfavorited",
+        type: "success",
+      });
       void utils?.document.getAll.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to update favorite");
+      toastManager.add({
+        title: error.message ?? "Failed to update favorite",
+        type: "error",
+      });
     },
   });
 
@@ -164,14 +178,18 @@ export function CommandPalette({
           await Promise.all(invitePromises);
         } catch (error) {
           // Some invites might fail, but document is created
-          toast.warning(
-            "Document created, but some invitations may have failed",
-          );
+          toastManager.add({
+            title: "Document created, but some invitations may have failed",
+            type: "warning",
+          });
         }
       }
       router.push(`/editor/${doc.id}`);
       setOpen(false);
-      toast.success("Document created");
+      toastManager.add({
+        title: "Document created",
+        type: "success",
+      });
       // Reset form
       setNewDocTitle("");
       setNewDocMembers([]);
@@ -180,12 +198,19 @@ export function CommandPalette({
       void utils?.document.getAll.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to create document");
+      toastManager.add({
+        title: error.message ?? "Failed to create document",
+        type: "error",
+      });
     },
   });
   const updateTitleMutation = api.document.updateTitle.useMutation({
     onSuccess: (res) => {
-      toast.success("Title updated", { duration: 1200 });
+      toastManager.add({
+        title: "Title updated",
+        type: "success",
+        timeout: 1200,
+      });
       setDocumentTitle(res.title);
       setTitleInput(res.title);
       void utils?.document.getAll.invalidate();
@@ -193,7 +218,10 @@ export function CommandPalette({
       setOpen(false);
     },
     onError: (error) => {
-      toast.error(error.message ?? "Failed to update title");
+      toastManager.add({
+        title: error.message ?? "Failed to update title",
+        type: "error",
+      });
     },
   });
 
@@ -232,30 +260,38 @@ export function CommandPalette({
 
     // Check if already added
     if (newDocMembers.some((m) => m.email === trimmedEmail)) {
-      toast.error("This email is already added");
+      toastManager.add({
+        title: "This email is already added",
+        type: "error",
+      });
       return;
     }
 
     // Validate email format
     if (!isValidEmailFormat(trimmedEmail)) {
-      toast.error("Please enter a valid email address");
+      toastManager.add({
+        title: "Please enter a valid email address",
+        type: "error",
+      });
       return;
     }
 
     // Validate with mail.so API
     const validationResult = await validateEmail(trimmedEmail);
     if (!validationResult.valid) {
-      toast.error(
-        validationResult.reason ?? "Please enter a valid email address",
-      );
+      toastManager.add({
+        title: validationResult.reason ?? "Please enter a valid email address",
+        type: "error",
+      });
       return;
     }
 
     // Warn about disposable emails but allow them
     if (validationResult.disposable) {
-      toast.warning(
-        "This email address appears to be from a disposable email service",
-      );
+      toastManager.add({
+        title: "This email address appears to be from a disposable email service",
+        type: "warning",
+      });
     }
 
     setNewDocMembers((prev) => [
@@ -298,19 +334,33 @@ export function CommandPalette({
       const currentMode = getEditMode(documentId);
       setIsCurrentlyEditable(currentMode ?? canWrite);
       const mode = currentMode ? "Edit" : "Read";
-      toast.success(`Switched to ${mode} mode`, { duration: 1500 });
+      toastManager.add({
+        title: `Switched to ${mode} mode`,
+        type: "success",
+        timeout: 1500,
+      });
       setOpen(false);
     } else {
       // Fallback to direct function call if editor not available
       const result = toggleEditMode(documentId, canWrite);
       if (result === null) {
-        toast.error("Editor not available");
+        toastManager.add({
+          title: "Editor not available",
+          type: "error",
+        });
       } else if (result === false) {
-        toast.error("You don't have permission to edit this document");
+        toastManager.add({
+          title: "You don't have permission to edit this document",
+          type: "error",
+        });
       } else {
         setIsCurrentlyEditable(result);
         const mode = result ? "Edit" : "Read";
-        toast.success(`Switched to ${mode} mode`, { duration: 1500 });
+        toastManager.add({
+          title: `Switched to ${mode} mode`,
+          type: "success",
+          timeout: 1500,
+        });
         setOpen(false);
       }
     }
@@ -563,7 +613,9 @@ export function CommandPalette({
                         ? "Create Document"
                         : page === "theme"
                           ? "Theme"
-                          : "Actions"
+                          : page === "account"
+                            ? "Account"
+                            : "Actions"
               }
               className="**:[[cmdk-group-heading]]:text-primary/50 **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
             >
@@ -685,6 +737,29 @@ export function CommandPalette({
                       />
                     </Kbd>
                   </Command.Item>
+
+                  <Command.Item
+                    value="account"
+                    onSelect={() => {
+                      setPages((prev) => [...prev, "account"]);
+                      setSearch("");
+                    }}
+                    className="group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
+                  >
+                    <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
+                      <FaUser
+                        size={13}
+                        className="text-icon-button group-aria-selected:text-primary shrink-0"
+                      />
+                    </span>
+                    <span className="flex-1">Account…</span>
+                    <Kbd className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 pointer-events-none flex items-center justify-center rounded-md border-none px-1.5 py-1 font-normal select-none">
+                      <FaArrowRight
+                        size={12}
+                        className="text-icon-button group-aria-selected:text-primary"
+                      />
+                    </Kbd>
+                  </Command.Item>
                 </>
               )}
 
@@ -725,6 +800,69 @@ export function CommandPalette({
                       {resolvedTheme === "light" && (
                         <div className="text-primary h-2 w-2 shrink-0 rounded-full bg-current" />
                       )}
+                    </Command.Item>
+                  </Command.Group>
+                </>
+              )}
+
+              {page === "account" && (
+                <>
+                  <Command.Group className="mb-8">
+                    {/* User Info Display */}
+                    {session?.user && (
+                      <div className="bg-card mx-2 mb-4 rounded-2xl border px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className="bg-cmdk-kbd-disabled flex items-center justify-center rounded-full p-2">
+                            <FaUser
+                              size={16}
+                              className="text-primary/50 shrink-0"
+                            />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-primary text-sm font-medium truncate">
+                              {session.user.name ?? "User"}
+                            </div>
+                            <div className="text-primary/50 text-xs truncate">
+                              {session.user.email}
+                            </div>
+                            {session.user.username && (
+                              <div className="text-primary/50 text-xs truncate mt-0.5">
+                                @{session.user.username}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Logout Action */}
+                    <Command.Item
+                      value="account.logout"
+                      onSelect={async () => {
+                        try {
+                          await signOut();
+                          toastManager.add({
+                            title: "Signed out successfully",
+                            type: "success",
+                          });
+                          setOpen(false);
+                          router.push("/sign-in");
+                        } catch (error) {
+                          toastManager.add({
+                            title: "Failed to sign out",
+                            type: "error",
+                          });
+                        }
+                      }}
+                      className="group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center gap-3 rounded-xl py-1.5 pr-3 pl-2 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
+                    >
+                      <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
+                        <FaRightFromBracket
+                          size={13}
+                          className="text-primary/50 shrink-0"
+                        />
+                      </span>
+                      <span className="flex-1">Sign out</span>
                     </Command.Item>
                   </Command.Group>
                 </>
@@ -869,9 +1007,10 @@ export function CommandPalette({
                                 (d) => d.id === selectedDocumentForActions,
                               );
                               if (!doc?.isOwner) {
-                                toast.error(
-                                  "Only document owners can delete documents",
-                                );
+                                toastManager.add({
+                                  title: "Only document owners can delete documents",
+                                  type: "error",
+                                });
                                 return;
                               }
                               if (
@@ -1773,6 +1912,16 @@ export function CommandPalette({
                         />
                       </Kbd>
                       to select theme
+                    </>
+                  ) : page == "account" ? (
+                    <>
+                      <Kbd className="bg-background pointer-events-none items-center justify-center rounded-md border-none px-2 py-1 select-none">
+                        <FaTurnDown
+                          size={12}
+                          className="text-icon-button -mb-0.5 rotate-90"
+                        />
+                      </Kbd>
+                      to sign out
                     </>
                   ) : (
                     <>

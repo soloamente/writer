@@ -213,6 +213,17 @@
     caret-shape: round;
   }
 
+  /* Hide spinner buttons on number inputs */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   /* Default caret enabled - custom cursor disabled */
   /* [data-lexical-editor],
   .lexical-content-editable {

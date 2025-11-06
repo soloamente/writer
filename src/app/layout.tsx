@@ -6,8 +6,8 @@ import { type Metadata } from "next";
 import { Inter } from "next/font/google";
 
 import { TRPCReactProvider } from "@/trpc/react";
-import { Toaster } from "sonner";
 import { ThemeProvider } from "next-themes";
+import { ToastProvider } from "@/components/ui/toast";
 
 export const metadata: Metadata = {
   title: "Writer",
@@ -28,8 +28,7 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <TRPCReactProvider>
-            {children}
-            <Toaster position="bottom-right" />
+            <ToastProvider>{children}</ToastProvider>
           </TRPCReactProvider>
         </ThemeProvider>
       </body>

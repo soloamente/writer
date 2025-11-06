@@ -2,14 +2,11 @@ import { Suspense } from "react";
 import { CreateDocumentButton } from "@/app/editor/_components/CreateDocumentButton";
 import { DocumentsList } from "@/app/editor/_components/DocumentsList";
 
+/**
+ * Documents list component.
+ * Authentication is handled by proxy.ts, so we can assume the user is authenticated here.
+ */
 async function AuthenticatedDocumentsList() {
-  const { auth } = await import("@/lib/auth");
-  const { headers } = await import("next/headers");
-  const { redirect } = await import("next/navigation");
-
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) redirect("/sign-in");
-
   return <DocumentsList />;
 }
 

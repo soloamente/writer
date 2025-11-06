@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
-import { toast } from "sonner";
+import { toastManager } from "@/components/ui/toast";
 
 export function CreateDocumentButton() {
   const router = useRouter();
@@ -11,9 +11,10 @@ export function CreateDocumentButton() {
   const utils = api.useUtils?.();
   const createMutation = api.document.create.useMutation({
     onError: (error) => {
-      toast.error(
-        error.message ?? "Failed to create document. Please try again.",
-      );
+      toastManager.add({
+        title: error.message ?? "Failed to create document. Please try again.",
+        type: "error",
+      });
     },
   });
 

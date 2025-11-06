@@ -20,7 +20,7 @@ import { CursorPlugin } from "@/app/editor/_components/CursorPlugin";
 import { TailwindExtension } from "@lexical/tailwind";
 import { api } from "@/trpc/react";
 import { useMemo, useRef, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toastManager } from "@/components/ui/toast";
 // Import standard Lexical nodes required by RichTextPlugin
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ListNode, ListItemNode } from "@lexical/list";
@@ -167,13 +167,17 @@ export function Editor({
         error && typeof error === "object" && "message" in error
           ? String(error.message)
           : "Failed to save document. Please try again.";
-      toast.error(message, { id: `save-error-${documentId}` });
+      toastManager.add({
+        title: message,
+        type: "error",
+      });
     },
     onSuccess: () => {
       // Show subtle success indication without being too intrusive
-      toast.success("Saved", {
-        id: `save-success-${documentId}`,
-        duration: 1500,
+      toastManager.add({
+        title: "Saved",
+        type: "success",
+        timeout: 1500,
       });
     },
   });

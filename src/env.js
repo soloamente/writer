@@ -13,6 +13,7 @@ export const env = createEnv({
     DATABASE_URL: z.string(),
     LIVEBLOCKS_SECRET_KEY: z.string(),
     LIVEBLOCKS_PUBLIC_KEY: z.string().optional(),
+    EXCHANGE_RATE_API_KEY: z.string(),
   },
 
   /**
@@ -35,6 +36,7 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     LIVEBLOCKS_SECRET_KEY: process.env.LIVEBLOCKS_SECRET_KEY,
     LIVEBLOCKS_PUBLIC_KEY: process.env.LIVEBLOCKS_PUBLIC_KEY,
+    EXCHANGE_RATE_API_KEY: process.env.EXCHANGE_RATE_API_KEY,
     NEXT_PUBLIC_BETTER_AUTH_URL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
   },
   /**

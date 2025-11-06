@@ -1,19 +1,19 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Toast } from "@base-ui-components/react/toast"
+import * as React from "react";
+import { Toast } from "@base-ui-components/react/toast";
 import {
   CircleAlertIcon,
   CircleCheckIcon,
   InfoIcon,
   LoaderCircleIcon,
   TriangleAlertIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 
-const toastManager = Toast.createToastManager()
+const toastManager = Toast.createToastManager();
 
 const TOAST_ICONS = {
   loading: LoaderCircleIcon,
@@ -21,7 +21,7 @@ const TOAST_ICONS = {
   error: CircleAlertIcon,
   info: InfoIcon,
   warning: TriangleAlertIcon,
-} as const
+} as const;
 
 type ToastPosition =
   | "top-left"
@@ -29,10 +29,10 @@ type ToastPosition =
   | "top-right"
   | "bottom-left"
   | "bottom-center"
-  | "bottom-right"
+  | "bottom-right";
 
 interface ToastProviderProps extends Toast.Provider.Props {
-  position?: ToastPosition
+  position?: ToastPosition;
 }
 
 function ToastProvider({
@@ -45,12 +45,12 @@ function ToastProvider({
       {children}
       <ToastList position={position} />
     </Toast.Provider>
-  )
+  );
 }
 
 function ToastList({ position = "bottom-right" }: { position: ToastPosition }) {
-  const { toasts } = Toast.useToastManager()
-  const isTop = position.startsWith("top")
+  const { toasts } = Toast.useToastManager();
+  const isTop = position.startsWith("top");
 
   return (
     <Toast.Portal data-slot="toast-portal">
@@ -63,7 +63,7 @@ function ToastList({ position = "bottom-right" }: { position: ToastPosition }) {
           // Horizontal positioning
           "data-[position*=left]:left-(--toast-inset)",
           "data-[position*=right]:right-(--toast-inset)",
-          "data-[position*=center]:left-1/2 data-[position*=center]:-translate-x-1/2"
+          "data-[position*=center]:left-1/2 data-[position*=center]:-translate-x-1/2",
         )}
         data-slot="toast-viewport"
         data-position={position}
@@ -71,7 +71,7 @@ function ToastList({ position = "bottom-right" }: { position: ToastPosition }) {
         {toasts.map((toast) => {
           const Icon = toast.type
             ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS]
-            : null
+            : null;
 
           return (
             <Toast.Root
@@ -86,7 +86,7 @@ function ToastList({ position = "bottom-right" }: { position: ToastPosition }) {
                     : ["right", isTop ? "up" : "down"]
               }
               className={cn(
-                "absolute z-[calc(9999-var(--toast-index))] h-(--toast-calc-height) w-full rounded-lg border bg-popover bg-clip-padding px-3.5 py-3 text-popover-foreground shadow-lg select-none [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:bg-clip-border dark:before:shadow-[0_-1px_--theme(--color-white/8%)]",
+                "bg-popover text-popover-foreground absolute z-[calc(9999-var(--toast-index))] h-(--toast-calc-height) w-fit rounded-2xl border bg-clip-padding px-3.5 py-3 shadow-lg select-none [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:bg-clip-border dark:before:shadow-[0_-1px_--theme(--color-white/8%)]",
                 // Base positioning using data-position
                 "data-[position*=right]:right-0 data-[position*=right]:left-auto",
                 "data-[position*=left]:right-auto data-[position*=left]:left-0",
@@ -124,7 +124,7 @@ function ToastList({ position = "bottom-right" }: { position: ToastPosition }) {
                 "data-expanded:data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-100%-var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
                 "data-expanded:data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+100%+var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
                 "data-expanded:data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-100%-var(--toast-inset)))]",
-                "data-expanded:data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+100%+var(--toast-inset)))]"
+                "data-expanded:data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+100%+var(--toast-inset)))]",
               )}
             >
               <Toast.Content className="flex items-center justify-between gap-1.5 overflow-hidden text-sm transition-opacity duration-250 data-behind:pointer-events-none data-behind:opacity-0 data-expanded:pointer-events-auto data-expanded:opacity-100">
@@ -134,7 +134,7 @@ function ToastList({ position = "bottom-right" }: { position: ToastPosition }) {
                       className="mt-.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&>svg]:h-[1lh] [&>svg]:w-4"
                       data-slot="toast-icon"
                     >
-                      <Icon className="in-data-[type=error]:text-destructive in-data-[type=info]:text-info in-data-[type=loading]:animate-spin in-data-[type=loading]:opacity-72 in-data-[type=success]:text-success in-data-[type=warning]:text-warning" />
+                      <Icon className="in-data-[type=error]:text-destructive in-data-[type=info]:text-info in-data-[type=success]:text-success in-data-[type=warning]:text-warning in-data-[type=loading]:animate-spin in-data-[type=loading]:opacity-72" />
                     </div>
                   )}
 
@@ -159,11 +159,11 @@ function ToastList({ position = "bottom-right" }: { position: ToastPosition }) {
                 )}
               </Toast.Content>
             </Toast.Root>
-          )
+          );
         })}
       </Toast.Viewport>
     </Toast.Portal>
-  )
+  );
 }
 
-export { ToastProvider, type ToastPosition, toastManager }
+export { ToastProvider, type ToastPosition, toastManager };

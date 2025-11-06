@@ -3,22 +3,18 @@ import { Room } from "@/app/editor/Room";
 import { Editor } from "@/app/editor/_components/editor";
 import { CommandPalette } from "@/app/editor/_components/CommandPalette";
 
-async function EditorContent({
-  documentId,
-}: {
-  documentId: string;
-}) {
+async function EditorContent({ documentId }: { documentId: string }) {
   const { auth } = await import("@/lib/auth");
   const prisma = (await import("@/lib/prisma")).default;
   const { headers } = await import("next/headers");
   const { redirect } = await import("next/navigation");
 
+  // Authentication is handled by proxy.ts, so we can assume the user is authenticated here
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) redirect("/sign-in");
 
-  // TypeScript: session.user is guaranteed to exist after the check above
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const userId = session!.user!.id;
+  // TypeScript: session.user is guaranteed to exist after proxy auth check
+
+  const userId = session!.user.id;
 
   // Check if user owns the document or has access via membership
   const [doc, membership] = await Promise.all([
@@ -97,12 +93,10 @@ function EditorSkeleton() {
     <div className="flex h-screen flex-col">
       <div className="flex-1 p-8">
         <div className="mx-auto max-w-4xl">
-          <div className="mb-4 h-8 w-48 animate-pulse rounded bg-base-300" />
-          <div className="h-96 w-full animate-pulse rounded bg-base-200" />
+          <div className="bg-base-300 mb-4 h-8 w-48 animate-pulse rounded" />
+          <div className="bg-base-200 h-96 w-full animate-pulse rounded" />
         </div>
       </div>
     </div>
   );
 }
-
-

@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/trpc/react";
-import { toast } from "sonner";
+import { toastManager } from "@/components/ui/toast";
 
 export function DocumentMembers({
   documentId,
@@ -17,14 +17,18 @@ export function DocumentMembers({
   const utils = api.useUtils?.();
   const removeMutation = api.document.removeAccess.useMutation({
     onSuccess: () => {
-      toast.success("User removed");
+      toastManager.add({
+        title: "User removed",
+        type: "success",
+      });
       void utils?.document.getMembers.invalidate({ documentId });
       void utils?.document.getAll.invalidate();
     },
     onError: (error: { message?: string }) => {
-      toast.error(
-        error?.message ?? "Failed to remove user. Please try again.",
-      );
+      toastManager.add({
+        title: error?.message ?? "Failed to remove user. Please try again.",
+        type: "error",
+      });
     },
   });
 

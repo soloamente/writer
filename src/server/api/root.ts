@@ -1,5 +1,6 @@
 import { postRouter } from "@/server/api/routers/post";
 import { documentRouter } from "@/server/api/routers/document";
+import { exchangeRateRouter } from "@/server/api/routers/exchange-rate";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 /**
@@ -10,6 +11,7 @@ import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 export const appRouter = createTRPCRouter({
   post: postRouter,
   document: documentRouter,
+  exchangeRate: exchangeRateRouter,
 });
 
 // export type definition of API

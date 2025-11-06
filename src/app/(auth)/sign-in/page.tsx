@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -47,12 +48,12 @@ export default function SignInPage() {
           required
           className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
         />
-        <button
+        <Button
           type="submit"
           className="w-full rounded-md bg-white px-4 py-2 font-medium text-black hover:bg-gray-200"
         >
           Sign In
-        </button>
+        </Button>
       </form>
     </main>
   );
