@@ -116,6 +116,16 @@ export function CommandPalette({
   const [isInDetailView, setIsInDetailView] = useState(false);
   const accountPageInitializedRef = useRef(false);
 
+  // State for sidebar navigation in members page
+  const [membersSubPage, setMembersSubPage] = useState<string | null>(null);
+  const [isInMembersDetailView, setIsInMembersDetailView] = useState(false);
+  const membersPageInitializedRef = useRef(false);
+
+  // State for sidebar navigation in create document page
+  const [createDocSubPage, setCreateDocSubPage] = useState<string | null>(null);
+  const [isInCreateDocDetailView, setIsInCreateDocDetailView] = useState(false);
+  const createDocPageInitializedRef = useRef(false);
+
   // State for editing account info
   const [isEditingAccountInfo, setIsEditingAccountInfo] = useState(false);
   const [accountName, setAccountName] = useState("");
@@ -444,10 +454,18 @@ export function CommandPalette({
       // Reset sidebar navigation state
       setAccountSubPage(null);
       setIsInDetailView(false);
+      setMembersSubPage(null);
+      setIsInMembersDetailView(false);
+      setCreateDocSubPage(null);
+      setIsInCreateDocDetailView(false);
       // Reset account editing state
       setIsEditingAccountInfo(false);
       setAccountName("");
       setAccountUsername("");
+      // Reset members page initialization
+      membersPageInitializedRef.current = false;
+      // Reset create document page initialization
+      createDocPageInitializedRef.current = false;
     }
   }, [open, documentId, canWrite, documentTitle]);
 
@@ -508,6 +526,38 @@ export function CommandPalette({
       accountPageInitializedRef.current = false;
     }
   }, [page]);
+
+  // Reset sidebar state when exiting members page, reset initialization flag
+  useEffect(() => {
+    if (page !== "members") {
+      setMembersSubPage(null);
+      setIsInMembersDetailView(false);
+      membersPageInitializedRef.current = false;
+    }
+  }, [page]);
+
+  // Reset detail view when membersSubPage becomes null
+  useEffect(() => {
+    if (page === "members" && !membersSubPage) {
+      setIsInMembersDetailView(false);
+    }
+  }, [membersSubPage, page]);
+
+  // Reset sidebar state when exiting create document page, reset initialization flag
+  useEffect(() => {
+    if (page !== "createDocument") {
+      setCreateDocSubPage(null);
+      setIsInCreateDocDetailView(false);
+      createDocPageInitializedRef.current = false;
+    }
+  }, [page]);
+
+  // Reset detail view when createDocSubPage becomes null
+  useEffect(() => {
+    if (page === "createDocument" && !createDocSubPage) {
+      setIsInCreateDocDetailView(false);
+    }
+  }, [createDocSubPage, page]);
 
   // Reset detail view when accountSubPage becomes null
   useEffect(() => {
@@ -577,14 +627,21 @@ export function CommandPalette({
           }
           break;
         case "members":
-          // Default to invite user button
-          setSelectedValue("invite.user");
+          // Default to first sidebar item (Current Members)
+          if (!membersPageInitializedRef.current) {
+            setSelectedValue("members.current");
+            setMembersSubPage("current");
+            membersPageInitializedRef.current = true;
+          }
           break;
         case "title":
         case "createDocument":
-          // These pages have input fields that are auto-focused
-          // No need to set selectedValue as the input handles focus
-          setSelectedValue(undefined);
+          // Default to first sidebar item (Title)
+          if (!createDocPageInitializedRef.current) {
+            setSelectedValue("createDoc.title");
+            setCreateDocSubPage("title");
+            createDocPageInitializedRef.current = true;
+          }
           break;
         default:
           setSelectedValue(undefined);
@@ -658,6 +715,30 @@ export function CommandPalette({
                 }
                 setAccountSubPage("logout");
                 // Don't set isInDetailView here - only when Enter is pressed
+              }
+            }
+
+            // Auto-update members sidebar detail view when navigating with arrow keys
+            // Note: isInMembersDetailView is only set when Enter is pressed, not on navigation
+            if (page === "members" && value) {
+              if (value === "members.current") {
+                setMembersSubPage("current");
+                // Don't set isInMembersDetailView here - only when Enter is pressed
+              } else if (value === "members.invite") {
+                setMembersSubPage("invite");
+                // Don't set isInMembersDetailView here - only when Enter is pressed
+              }
+            }
+
+            // Auto-update create document sidebar detail view when navigating with arrow keys
+            // Note: isInCreateDocDetailView is only set when Enter is pressed, not on navigation
+            if (page === "createDocument" && value) {
+              if (value === "createDoc.title") {
+                setCreateDocSubPage("title");
+                // Don't set isInCreateDocDetailView here - only when Enter is pressed
+              } else if (value === "createDoc.members") {
+                setCreateDocSubPage("members");
+                // Don't set isInCreateDocDetailView here - only when Enter is pressed
               }
             }
           }}
@@ -822,12 +903,230 @@ export function CommandPalette({
                 }
                 return;
               }
+              // If in members detail view, exit detail view to return to sidebar
+              if (
+                isInMembersDetailView &&
+                page === "members" &&
+                membersSubPage !== null
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsInMembersDetailView(false);
+                // Ensure the correct sidebar item is selected after exiting detail view
+                const selectedItemValue =
+                  membersSubPage === "invite"
+                    ? "members.invite"
+                    : membersSubPage === "current"
+                      ? "members.current"
+                      : null;
+                if (selectedItemValue) {
+                  setSelectedValue(selectedItemValue);
+                  // Restore focus to enable keyboard navigation
+                  setTimeout(() => {
+                    // Blur any focused buttons or inputs to release focus
+                    if (
+                      document.activeElement instanceof HTMLButtonElement ||
+                      document.activeElement instanceof HTMLInputElement
+                    ) {
+                      document.activeElement.blur();
+                    }
+                    // Small delay to let cmdk update its internal state
+                    setTimeout(() => {
+                      // Try to focus the selected sidebar item first
+                      const selectedItem = document.querySelector(
+                        `[cmdk-item][value="${selectedItemValue}"]`,
+                      );
+                      if (selectedItem instanceof HTMLElement) {
+                        selectedItem.focus();
+                      } else {
+                        // Fallback: focus Command.Input to restore keyboard navigation context
+                        const commandInput =
+                          document.querySelector("[cmdk-input]");
+                        if (commandInput instanceof HTMLInputElement) {
+                          commandInput.focus();
+                        }
+                      }
+                    }, 10);
+                  }, 0);
+                }
+                return;
+              }
+              // If in create document detail view, exit detail view to return to sidebar
+              if (
+                isInCreateDocDetailView &&
+                page === "createDocument" &&
+                createDocSubPage !== null
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsInCreateDocDetailView(false);
+                // Ensure the correct sidebar item is selected after exiting detail view
+                const selectedItemValue =
+                  createDocSubPage === "members"
+                    ? "createDoc.members"
+                    : createDocSubPage === "title"
+                      ? "createDoc.title"
+                      : null;
+                if (selectedItemValue) {
+                  setSelectedValue(selectedItemValue);
+                  // Restore focus to enable keyboard navigation
+                  setTimeout(() => {
+                    // Blur any focused buttons or inputs to release focus
+                    if (
+                      document.activeElement instanceof HTMLButtonElement ||
+                      document.activeElement instanceof HTMLInputElement
+                    ) {
+                      document.activeElement.blur();
+                    }
+                    // Small delay to let cmdk update its internal state
+                    setTimeout(() => {
+                      // Try to focus the selected sidebar item first
+                      const selectedItem = document.querySelector(
+                        `[cmdk-item][value="${selectedItemValue}"]`,
+                      );
+                      if (selectedItem instanceof HTMLElement) {
+                        selectedItem.focus();
+                      } else {
+                        // Fallback: focus Command.Input to restore keyboard navigation context
+                        const commandInput =
+                          document.querySelector("[cmdk-input]");
+                        if (commandInput instanceof HTMLInputElement) {
+                          commandInput.focus();
+                        }
+                      }
+                    }, 10);
+                  }, 0);
+                }
+                return;
+              }
               // If in nested page, go back to main page
               if (pages.length > 0) {
                 e.preventDefault();
                 e.stopPropagation();
                 setPages((prev) => prev.slice(0, -1));
                 return;
+              }
+            }
+
+            // Enter: execute action for members sidebar items
+            if (e.key === "Enter" && !isTypingInField && page === "members") {
+              const target = e.target as HTMLElement | null;
+              const activeElement = document.activeElement;
+
+              // If focus is on a button, let it handle Enter naturally
+              if (
+                target?.tagName === "BUTTON" ||
+                activeElement?.tagName === "BUTTON"
+              ) {
+                return;
+              }
+
+              // If in detail view and focus is not on a sidebar item, don't intercept
+              if (isInMembersDetailView) {
+                const isFocusOnSidebarItem = activeElement?.closest(
+                  "[data-members-sidebar-item]",
+                );
+                if (!isFocusOnSidebarItem) {
+                  return;
+                }
+              }
+
+              // Check sidebar item selection
+              const selectedItem = document.querySelector(
+                '[cmdk-item][aria-selected="true"][data-members-sidebar-item]',
+              );
+
+              if (selectedItem instanceof HTMLElement) {
+                const subPage = selectedItem.getAttribute(
+                  "data-members-sidebar-item",
+                );
+
+                if (subPage === "current") {
+                  // Members are always visible, so Enter doesn't need to enter detail view
+                  // This can be extended later for editing permissions or focusing a member
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (membersSubPage !== "current") {
+                    setMembersSubPage("current");
+                  }
+                  // Don't enter detail view - members are already visible
+                  return;
+                } else if (subPage === "invite") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (membersSubPage !== "invite") {
+                    setMembersSubPage("invite");
+                  }
+                  setIsInMembersDetailView(true);
+                  return;
+                }
+              }
+            }
+
+            // Enter: execute action for create document sidebar items
+            if (
+              e.key === "Enter" &&
+              !isTypingInField &&
+              page === "createDocument"
+            ) {
+              const target = e.target as HTMLElement | null;
+              const activeElement = document.activeElement;
+
+              // If focus is on a button or input, let it handle Enter naturally
+              if (
+                target?.tagName === "BUTTON" ||
+                activeElement?.tagName === "BUTTON" ||
+                target?.tagName === "INPUT" ||
+                activeElement?.tagName === "INPUT"
+              ) {
+                return;
+              }
+
+              // If in detail view and focus is not on a sidebar item, don't intercept
+              if (isInCreateDocDetailView) {
+                const isFocusOnSidebarItem = activeElement?.closest(
+                  "[data-create-doc-sidebar-item]",
+                );
+                if (!isFocusOnSidebarItem) {
+                  return;
+                }
+              }
+
+              // Check sidebar item selection
+              const selectedItem = document.querySelector(
+                '[cmdk-item][aria-selected="true"][data-create-doc-sidebar-item]',
+              );
+
+              if (selectedItem instanceof HTMLElement) {
+                const subPage = selectedItem.getAttribute(
+                  "data-create-doc-sidebar-item",
+                );
+
+                if (subPage === "title") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (createDocSubPage !== "title") {
+                    setCreateDocSubPage("title");
+                  }
+                  setIsInCreateDocDetailView(true);
+                  // Focus the title input after entering detail view
+                  setTimeout(() => {
+                    newDocTitleInputRef.current?.focus();
+                  }, 0);
+                  return;
+                } else if (subPage === "members") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (createDocSubPage !== "members") {
+                    setCreateDocSubPage("members");
+                  }
+                  setIsInCreateDocDetailView(true);
+                  // Focus the email input after entering detail view
+                  setTimeout(() => {
+                    newMemberEmailInputRef.current?.focus();
+                  }, 0);
+                  return;
+                }
               }
             }
 
@@ -1164,7 +1463,7 @@ export function CommandPalette({
                   <div className="flex h-full">
                     {/* Left sidebar - animated width */}
                     <motion.div
-                      className="border-border border-r pr-2"
+                      className="border-border overflow-hidden border-r px-2 pr-2.5"
                       animate={{
                         width: isInDetailView ? 64 : 192,
                       }}
@@ -1191,10 +1490,10 @@ export function CommandPalette({
                               // Detail view will be entered when user presses Enter
                             }
                           }}
-                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center justify-start rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
                             isInDetailView
-                              ? "justify-center gap-0 px-2"
-                              : "gap-3 pr-3 pl-2"
+                              ? "gap-0 pr-2 pl-2"
+                              : "gap-3 pr-2 pl-2"
                           } ${accountSubPage === "info" ? "bg-accent/50" : ""}`}
                         >
                           <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
@@ -1206,12 +1505,17 @@ export function CommandPalette({
                           <AnimatePresence mode="wait">
                             {!isInDetailView && (
                               <motion.span
-                                className="flex-1"
-                                initial={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
+                                className="flex-1 overflow-hidden whitespace-nowrap"
+                                initial={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  maxWidth: "100%",
+                                }}
+                                exit={{ opacity: 0, width: 0, maxWidth: 0 }}
                                 transition={{
-                                  duration: 0.2,
+                                  duration: 0.15,
                                   ease: [0.215, 0.61, 0.355, 1],
+                                  opacity: { duration: 0.1 },
                                 }}
                               >
                                 Account Info
@@ -1248,9 +1552,9 @@ export function CommandPalette({
                             }
                             // Detail view will be entered when user presses Enter (handled by Enter key handler or this onSelect)
                           }}
-                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center justify-start rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
                             isInDetailView
-                              ? "justify-center gap-0 px-2"
+                              ? "gap-0 pr-2 pl-2"
                               : "gap-3 pr-3 pl-2"
                           } ${
                             accountSubPage === "logout" ? "bg-accent/50" : ""
@@ -1265,12 +1569,17 @@ export function CommandPalette({
                           <AnimatePresence mode="wait">
                             {!isInDetailView && (
                               <motion.span
-                                className="flex-1"
-                                initial={{ opacity: 1, width: "auto" }}
-                                exit={{ opacity: 0, width: 0 }}
+                                className="flex-1 overflow-hidden whitespace-nowrap"
+                                initial={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  maxWidth: "100%",
+                                }}
+                                exit={{ opacity: 0, width: 0, maxWidth: 0 }}
                                 transition={{
-                                  duration: 0.2,
+                                  duration: 0.15,
                                   ease: [0.215, 0.61, 0.355, 1],
+                                  opacity: { duration: 0.1 },
                                 }}
                               >
                                 Sign out
@@ -1777,52 +2086,216 @@ export function CommandPalette({
 
               {page === "members" && isOwner && (
                 <>
-                  {/* Invite Section - Separated with visual distinction */}
-
-                  {/* Members List Section - Separated */}
-                  {members && members.length > 0 && (
-                    <Command.Group className="**:[[cmdk-group-heading]]:text-primary/50 mb-8 **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase">
-                      <InviteUserButton
-                        documentId={documentId}
-                        autoOpen={false}
-                        onClose={() => {
-                          // Refocus command input after closing invite form
-                          setTimeout(() => {
-                            const commandInput = document.querySelector(
-                              "[cmdk-input]",
-                            ) as HTMLInputElement;
-                            commandInput?.focus();
-                          }, 0);
-                        }}
-                      />
-                      {members.map((member) => (
+                  {/* Always show sidebar + detail view layout */}
+                  <div className="flex h-full">
+                    {/* Left sidebar - animated width */}
+                    <motion.div
+                      className="border-border overflow-hidden border-r px-2 pr-2.5"
+                      animate={{
+                        width: isInMembersDetailView ? 64 : 192,
+                      }}
+                      transition={{
+                        duration: 0.25,
+                        ease: [0.215, 0.61, 0.355, 1], // ease-out-cubic
+                      }}
+                    >
+                      <Command.Group className="mb-0">
                         <Command.Item
-                          key={`member-${member.id}`}
-                          className="group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-default items-center gap-3 rounded-xl px-2 py-1.5 text-sm select-none"
+                          value="members.current"
+                          data-members-sidebar-item="current"
+                          onSelect={() => {
+                            if (membersSubPage !== "current") {
+                              setMembersSubPage("current");
+                            }
+                            // Members are always visible, no need to enter detail view
+                          }}
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center justify-start rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                            isInMembersDetailView
+                              ? "gap-0 pr-2 pl-2"
+                              : "gap-3 pr-2 pl-2"
+                          } ${membersSubPage === "current" ? "bg-accent/50" : ""}`}
                         >
-                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
-                            {member.role === "write" ? (
-                              <FaPen
-                                size={13}
-                                className="text-primary/50 shrink-0"
+                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
+                            <FaUser
+                              size={13}
+                              className="text-primary/50 shrink-0"
+                            />
+                          </span>
+                          <AnimatePresence mode="wait">
+                            {!isInMembersDetailView && (
+                              <motion.span
+                                className="flex-1 overflow-hidden whitespace-nowrap"
+                                initial={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  maxWidth: "100%",
+                                }}
+                                exit={{ opacity: 0, width: 0, maxWidth: 0 }}
+                                transition={{
+                                  duration: 0.15,
+                                  ease: [0.215, 0.61, 0.355, 1],
+                                  opacity: { duration: 0.1 },
+                                }}
+                              >
+                                Members
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                          {membersSubPage === "current" &&
+                            !isInMembersDetailView && (
+                              <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                            )}
+                        </Command.Item>
+                        <Command.Item
+                          value="members.invite"
+                          data-members-sidebar-item="invite"
+                          onSelect={() => {
+                            if (
+                              membersSubPage === "invite" &&
+                              !isInMembersDetailView
+                            ) {
+                              setIsInMembersDetailView(true);
+                            } else if (membersSubPage !== "invite") {
+                              setMembersSubPage("invite");
+                            }
+                          }}
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center justify-start rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                            isInMembersDetailView
+                              ? "gap-0 pr-2 pl-2"
+                              : "gap-3 pr-2 pl-2"
+                          } ${
+                            membersSubPage === "invite" ? "bg-accent/50" : ""
+                          }`}
+                        >
+                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
+                            <FaPlus
+                              size={13}
+                              className="text-primary/50 shrink-0"
+                            />
+                          </span>
+                          <AnimatePresence mode="wait">
+                            {!isInMembersDetailView && (
+                              <motion.span
+                                className="flex-1 overflow-hidden whitespace-nowrap"
+                                initial={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  maxWidth: "100%",
+                                }}
+                                exit={{ opacity: 0, width: 0, maxWidth: 0 }}
+                                transition={{
+                                  duration: 0.15,
+                                  ease: [0.215, 0.61, 0.355, 1],
+                                  opacity: { duration: 0.1 },
+                                }}
+                              >
+                                Invite
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                          {membersSubPage === "invite" &&
+                            !isInMembersDetailView && (
+                              <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                            )}
+                        </Command.Item>
+                      </Command.Group>
+                    </motion.div>
+                    {/* Right side - detail content (always visible, updates based on selection) */}
+                    <div className="min-h-[300px] flex-1 overflow-y-auto px-4 pb-4">
+                      {membersSubPage === "current" && (
+                        <div className="space-y-4">
+                          <div>
+                            <div className="mb-3 flex items-center justify-between">
+                              <h3 className="text-primary/50 text-xs font-medium tracking-wider uppercase">
+                                Current Members
+                              </h3>
+                            </div>
+                            <div className="space-y-2">
+                              {members && members.length > 0 ? (
+                                members.map((member) => (
+                                  <div
+                                    key={`member-${member.id}`}
+                                    className="bg-card group flex cursor-default items-center gap-3 rounded-xl border px-3 py-2 text-sm"
+                                  >
+                                    <span className="bg-cmdk-kbd-disabled flex items-center justify-center rounded-md p-2">
+                                      {member.role === "write" ? (
+                                        <FaPen
+                                          size={13}
+                                          className="text-primary/50 shrink-0"
+                                        />
+                                      ) : (
+                                        <FaEye
+                                          size={13}
+                                          className="text-primary/50 shrink-0"
+                                        />
+                                      )}
+                                    </span>
+                                    <span className="text-primary/50 flex-1">
+                                      {member.user.name ?? member.user.email}
+                                    </span>
+                                    <Kbd className="bg-cmdk-kbd-disabled pointer-events-none items-center justify-center rounded-md border-none px-2 py-1 select-none">
+                                      {member.role === "write"
+                                        ? "can write"
+                                        : "can read"}
+                                    </Kbd>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-primary/40 text-sm">
+                                  No members yet. Invite someone!
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {membersSubPage === "invite" && (
+                        <div className="space-y-4">
+                          <div>
+                            <div className="mb-3 flex items-center justify-between">
+                              <h3 className="text-primary/50 text-xs font-medium tracking-wider uppercase">
+                                Invite Member
+                              </h3>
+                              {!isInMembersDetailView && (
+                                <div className="flex items-center gap-2">
+                                  <KbdGroup className="flex items-center gap-0.5">
+                                    <Kbd className="bg-background pointer-events-none rounded-md border-none px-1.5 py-1 text-[10px] select-none">
+                                      Enter
+                                    </Kbd>
+                                  </KbdGroup>
+                                  <span className="text-primary/40 text-xs">
+                                    to invite
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            {isInMembersDetailView ? (
+                              <InviteUserButton
+                                documentId={documentId}
+                                autoOpen={true}
+                                onClose={() => {
+                                  // Exit detail view when invite form closes
+                                  setIsInMembersDetailView(false);
+                                  // Refocus command input after closing invite form
+                                  setTimeout(() => {
+                                    const commandInput = document.querySelector(
+                                      "[cmdk-input]",
+                                    ) as HTMLInputElement;
+                                    commandInput?.focus();
+                                  }, 0);
+                                }}
                               />
                             ) : (
-                              <FaEye
-                                size={13}
-                                className="text-primary/50 shrink-0"
-                              />
+                              <div className="text-primary/40 text-sm">
+                                Select &quot;Invite&quot; and press Enter to
+                                invite a new member.
+                              </div>
                             )}
-                          </span>
-                          <span className="flex-1">
-                            {member.user.name ?? member.user.email}
-                          </span>
-                          <Kbd className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 pointer-events-none items-center justify-center rounded-md border-none px-2 py-1 select-none">
-                            {member.role === "write" ? "can write" : "can read"}
-                          </Kbd>
-                        </Command.Item>
-                      ))}
-                    </Command.Group>
-                  )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </>
               )}
 
@@ -1916,543 +2389,800 @@ export function CommandPalette({
               )}
 
               {page === "createDocument" && (
-                <div className="mb-8 space-y-4 px-2">
-                  {/* Document Name Section */}
-                  <div className="space-y-6">
-                    <div className="space-y-2">
-                      {/* <div className="text-primary/50 px-1 text-xs font-medium tracking-wider uppercase">
-                      Document Name
-                    </div> */}
-                      <div className="bg-card flex items-center gap-2 rounded-2xl border py-2 pr-2 pl-3">
-                        <input
-                          ref={newDocTitleInputRef}
-                          value={newDocTitle}
-                          onChange={(e) => setNewDocTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Escape") {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setPages((prev) => prev.slice(0, -1));
+                <>
+                  {/* Always show sidebar + detail view layout */}
+                  <div className="flex h-full">
+                    {/* Left sidebar - animated width */}
+                    <motion.div
+                      className="border-border overflow-hidden border-r px-2 pr-2.5"
+                      animate={{
+                        width: isInCreateDocDetailView ? 64 : 192,
+                      }}
+                      transition={{
+                        duration: 0.25,
+                        ease: [0.215, 0.61, 0.355, 1], // ease-out-cubic
+                      }}
+                    >
+                      <Command.Group className="mb-0">
+                        <Command.Item
+                          value="createDoc.title"
+                          data-create-doc-sidebar-item="title"
+                          onSelect={() => {
+                            if (
+                              createDocSubPage === "title" &&
+                              !isInCreateDocDetailView
+                            ) {
+                              setIsInCreateDocDetailView(true);
                               setTimeout(() => {
-                                const commandInput = document.querySelector(
-                                  "[cmdk-input]",
-                                ) as HTMLInputElement;
-                                commandInput?.focus();
+                                newDocTitleInputRef.current?.focus();
                               }, 0);
-                            } else if (e.key === "Tab" && !e.shiftKey) {
-                              // Tab to next field (member email)
-                              e.preventDefault();
-                              e.stopPropagation();
-                              newMemberEmailInputRef.current?.focus();
-                            }
-                            // Prevent command palette navigation when typing
-                            if (e.target instanceof HTMLInputElement) {
-                              e.stopPropagation();
+                            } else if (createDocSubPage !== "title") {
+                              setCreateDocSubPage("title");
                             }
                           }}
-                          placeholder="Enter document name (optional)"
-                          aria-label="Document title"
-                          className="placeholder:text-primary/50 flex w-full py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                          autoFocus
-                        />
-                      </div>
-                    </div>
-                    {/* Members Section */}
-                    <div className="space-y-2">
-                      <div className="text-primary/50 px-1 text-xs font-medium tracking-wider uppercase">
-                        Members (optional)
-                      </div>
-
-                      {/* Add Member Form */}
-                      <div className="flex items-center gap-2">
-                        <Label className="bg-background/50 text-primary flex flex-1 items-center justify-between rounded-2xl border py-2 pr-2 pl-3 text-sm">
-                          <input
-                            ref={newMemberEmailInputRef}
-                            type="email"
-                            value={newMemberEmail}
-                            onChange={(e) => setNewMemberEmail(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !showRoleOptions) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                void addMember();
-                              } else if (e.key === "Tab" && !e.shiftKey) {
-                                // Tab to role selector
-                                e.preventDefault();
-                                e.stopPropagation();
-                                roleSelectorButtonRef.current?.focus();
-                              } else if (e.key === "Tab" && e.shiftKey) {
-                                // Shift+Tab to title input
-                                e.preventDefault();
-                                e.stopPropagation();
-                                newDocTitleInputRef.current?.focus();
-                              } else if (e.key === "Escape") {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (showRoleOptions) {
-                                  setShowRoleOptions(false);
-                                  roleSelectorButtonRef.current?.focus();
-                                } else {
-                                  setPages((prev) => prev.slice(0, -1));
-                                  setTimeout(() => {
-                                    const commandInput = document.querySelector(
-                                      "[cmdk-input]",
-                                    ) as HTMLInputElement;
-                                    commandInput?.focus();
-                                  }, 0);
-                                }
-                              }
-                              // Prevent command palette navigation
-                              if (e.target instanceof HTMLInputElement) {
-                                e.stopPropagation();
-                              }
-                            }}
-                            placeholder="user@example.com"
-                            className="placeholder:text-primary/50"
-                            disabled={
-                              createMutation.isPending || showRoleOptions
-                            }
-                            aria-label="Member email"
-                          />
-                          <AnimatePresence mode="wait">
-                            {isValidEmailFormat(newMemberEmail) ? (
-                              <motion.span
-                                key="valid"
-                                initial={{ opacity: 0 }}
-                                animate={{
-                                  opacity: 1,
-                                  transition: { duration: 0.2 },
-                                }}
-                                exit={{
-                                  opacity: 0,
-                                  transition: { duration: 0.2 },
-                                }}
-                                className="group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-full bg-green-600 p-1"
-                              >
-                                <FaCheck
-                                  size={12}
-                                  className="text-primary shrink-0"
-                                />
-                              </motion.span>
-                            ) : (
-                              <motion.span
-                                key="invalid"
-                                initial={{ opacity: 0 }}
-                                animate={{
-                                  opacity: 1,
-                                  transition: { duration: 0.2 },
-                                }}
-                                exit={{
-                                  opacity: 0,
-                                  transition: { duration: 0.2 },
-                                }}
-                                className="group-aria-selected:bg-accent-foreground/20 bg-cmdk-kbd-disabled flex items-center justify-center rounded-full p-1"
-                              >
-                                <FaCheck
-                                  size={12}
-                                  className="text-cmdk-kbd-active-foreground shrink-0"
-                                />
-                              </motion.span>
-                            )}
-                          </AnimatePresence>
-                        </Label>
-                        {!showRoleOptions && (
-                          <button
-                            ref={roleSelectorButtonRef}
-                            type="button"
-                            onClick={() => {
-                              setShowRoleOptions(true);
-                              // Focus first role option after a brief delay
-                              setTimeout(() => {
-                                firstRoleOptionRef.current?.focus();
-                              }, 0);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setShowRoleOptions(true);
-                                setTimeout(() => {
-                                  firstRoleOptionRef.current?.focus();
-                                }, 0);
-                              } else if (e.key === "Tab" && !e.shiftKey) {
-                                // Tab navigation logic:
-                                // 1. If members exist, go to first remove button
-                                // 2. If add member button is enabled (valid email), go to add member button
-                                // 3. Otherwise, skip to create button
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (newDocMembers.length > 0) {
-                                  // If members exist, go to first remove button
-                                  const firstRemoveButton =
-                                    document.querySelector(
-                                      '[aria-label^="Remove"]',
-                                    ) as HTMLButtonElement;
-                                  firstRemoveButton?.focus();
-                                } else {
-                                  // Check if add member button is enabled
-                                  const isAddMemberEnabled =
-                                    !createMutation.isPending &&
-                                    isValidEmailFormat(newMemberEmail.trim());
-                                  if (isAddMemberEnabled) {
-                                    addMemberButtonRef.current?.focus();
-                                  } else {
-                                    // Skip to create button if add member is disabled
-                                    createButtonRef.current?.focus();
-                                  }
-                                }
-                              } else if (e.key === "Tab" && e.shiftKey) {
-                                // Shift+Tab to email input
-                                e.preventDefault();
-                                e.stopPropagation();
-                                newMemberEmailInputRef.current?.focus();
-                              }
-                              if (e.target instanceof HTMLButtonElement) {
-                                e.stopPropagation();
-                              }
-                            }}
-                            className="group aria-selected:bg-accent text-primary bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 focus-visible:ring-primary/50 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm outline-none select-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            disabled={createMutation.isPending}
-                            aria-label="Select permission role"
-                            aria-expanded={showRoleOptions}
-                            aria-haspopup="true"
-                          >
-                            {newMemberRole === "write" ? (
-                              <FaPen
-                                size={13}
-                                className="text-primary shrink-0"
-                              />
-                            ) : (
-                              <FaEye
-                                size={13}
-                                className="text-primary shrink-0"
-                              />
-                            )}
-                            <span className="capitalize">{newMemberRole}</span>
-                            <FaChevronDown
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center justify-start rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                            isInCreateDocDetailView
+                              ? "gap-0 pr-2 pl-2"
+                              : "gap-3 pr-2 pl-2"
+                          } ${createDocSubPage === "title" ? "bg-accent/50" : ""}`}
+                        >
+                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
+                            <FaFile
                               size={13}
                               className="text-primary/50 shrink-0"
                             />
-                          </button>
-                        )}
-                        {!showRoleOptions && (
-                          <button
-                            ref={addMemberButtonRef}
-                            type="button"
-                            onClick={() => void addMember()}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                void addMember();
-                              } else if (e.key === "Tab" && !e.shiftKey) {
-                                // Tab: if members exist, go to first remove button, else go to create button
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (newDocMembers.length > 0) {
-                                  const firstRemoveButton =
-                                    document.querySelector(
-                                      '[aria-label^="Remove"]',
-                                    ) as HTMLButtonElement;
-                                  firstRemoveButton?.focus();
-                                } else {
-                                  createButtonRef.current?.focus();
-                                }
-                              } else if (e.key === "Tab" && e.shiftKey) {
-                                // Shift+Tab to role selector
-                                e.preventDefault();
-                                e.stopPropagation();
-                                roleSelectorButtonRef.current?.focus();
-                              }
-                              if (e.target instanceof HTMLButtonElement) {
-                                e.stopPropagation();
-                              }
-                            }}
-                            className="group text-primary-foreground bg-primary aria-selected:bg-accent aria-selected:text-primary group-aria-selected:bg-accent-foreground/20 disabled:bg-cmdk-kbd-disabled disabled:text-cmdk-kbd-active-foreground focus-visible:ring-primary/50 flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2 pr-2 pl-2.5 text-sm outline-none select-none focus-visible:ring-2 disabled:cursor-not-allowed"
-                            disabled={
-                              createMutation.isPending ||
-                              !isValidEmailFormat(newMemberEmail.trim())
+                          </span>
+                          <AnimatePresence mode="wait">
+                            {!isInCreateDocDetailView && (
+                              <motion.span
+                                className="flex-1 overflow-hidden whitespace-nowrap"
+                                initial={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  maxWidth: "100%",
+                                }}
+                                exit={{ opacity: 0, width: 0, maxWidth: 0 }}
+                                transition={{
+                                  duration: 0.15,
+                                  ease: [0.215, 0.61, 0.355, 1],
+                                  opacity: { duration: 0.1 },
+                                }}
+                              >
+                                Title
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                          {createDocSubPage === "title" &&
+                            !isInCreateDocDetailView && (
+                              <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                            )}
+                        </Command.Item>
+                        <Command.Item
+                          value="createDoc.members"
+                          data-create-doc-sidebar-item="members"
+                          onSelect={() => {
+                            if (
+                              createDocSubPage === "members" &&
+                              !isInCreateDocDetailView
+                            ) {
+                              setIsInCreateDocDetailView(true);
+                              setTimeout(() => {
+                                newMemberEmailInputRef.current?.focus();
+                              }, 0);
+                            } else if (createDocSubPage !== "members") {
+                              setCreateDocSubPage("members");
                             }
-                            aria-label="Add member"
-                          >
-                            Add
-                            <FaPlus size={13} />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Role Options */}
-                      <AnimatePresence>
-                        {showRoleOptions && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.15 }}
-                            className="space-y-1"
-                          >
-                            <button
-                              ref={firstRoleOptionRef}
-                              type="button"
-                              onClick={() => {
-                                setNewMemberRole("read");
-                                setShowRoleOptions(false);
-                                roleSelectorButtonRef.current?.focus();
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setNewMemberRole("read");
-                                  setShowRoleOptions(false);
-                                  roleSelectorButtonRef.current?.focus();
-                                } else if (e.key === "ArrowDown") {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  // Focus write option
-                                  const writeButton = e.currentTarget
-                                    .nextElementSibling as HTMLButtonElement;
-                                  writeButton?.focus();
-                                } else if (e.key === "Escape") {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setShowRoleOptions(false);
-                                  roleSelectorButtonRef.current?.focus();
-                                }
-                                if (e.target instanceof HTMLButtonElement) {
-                                  e.stopPropagation();
-                                }
-                              }}
-                              className={`group text-primary/50 hover:bg-accent hover:text-primary aria-selected:bg-accent aria-selected:text-primary focus-visible:ring-primary/50 relative flex w-full cursor-pointer items-center gap-3 rounded-xl py-1.5 pr-3 pl-2 text-sm ease-out outline-none select-none focus-visible:ring-2 ${
-                                newMemberRole === "read" ? "bg-accent/50" : ""
-                              }`}
-                              aria-label="Select read permission"
-                            >
-                              <span className="bg-cmdk-kbd-disabled group-hover:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
-                                <FaEye
-                                  size={13}
-                                  className="text-primary/50 shrink-0"
-                                />
-                              </span>
-                              <span className="flex-1 text-left">Read</span>
-                              {newMemberRole === "read" && (
-                                <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                          }}
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center justify-start rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                            isInCreateDocDetailView
+                              ? "gap-0 pr-2 pl-2"
+                              : "gap-3 pr-2 pl-2"
+                          } ${
+                            createDocSubPage === "members" ? "bg-accent/50" : ""
+                          }`}
+                        >
+                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
+                            <FaUser
+                              size={13}
+                              className="text-primary/50 shrink-0"
+                            />
+                          </span>
+                          <AnimatePresence mode="wait">
+                            {!isInCreateDocDetailView && (
+                              <motion.span
+                                className="flex-1 overflow-hidden whitespace-nowrap"
+                                initial={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  maxWidth: "100%",
+                                }}
+                                exit={{ opacity: 0, width: 0, maxWidth: 0 }}
+                                transition={{
+                                  duration: 0.15,
+                                  ease: [0.215, 0.61, 0.355, 1],
+                                  opacity: { duration: 0.1 },
+                                }}
+                              >
+                                Members
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                          {createDocSubPage === "members" &&
+                            !isInCreateDocDetailView && (
+                              <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                            )}
+                        </Command.Item>
+                      </Command.Group>
+                    </motion.div>
+                    {/* Right side - detail content (always visible, updates based on selection) */}
+                    <div className="min-h-[300px] flex-1 overflow-y-auto px-4 pb-4">
+                      {createDocSubPage === "title" && (
+                        <div className="space-y-4">
+                          <div>
+                            <div className="mb-3 flex items-center justify-between">
+                              <h3 className="text-primary/50 text-xs font-medium tracking-wider uppercase">
+                                Document Title
+                              </h3>
+                              {!isInCreateDocDetailView && (
+                                <div className="flex items-center gap-2">
+                                  <KbdGroup className="flex items-center gap-0.5">
+                                    <Kbd className="bg-background pointer-events-none rounded-md border-none px-1.5 py-1 text-[10px] select-none">
+                                      Enter
+                                    </Kbd>
+                                  </KbdGroup>
+                                  <span className="text-primary/40 text-xs">
+                                    to edit
+                                  </span>
+                                </div>
                               )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNewMemberRole("write");
-                                setShowRoleOptions(false);
-                                roleSelectorButtonRef.current?.focus();
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setNewMemberRole("write");
-                                  setShowRoleOptions(false);
-                                  roleSelectorButtonRef.current?.focus();
-                                } else if (e.key === "ArrowUp") {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  // Focus read option
-                                  const readButton = e.currentTarget
-                                    .previousElementSibling as HTMLButtonElement;
-                                  readButton?.focus();
-                                } else if (e.key === "Escape") {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setShowRoleOptions(false);
-                                  roleSelectorButtonRef.current?.focus();
-                                }
-                                if (e.target instanceof HTMLButtonElement) {
-                                  e.stopPropagation();
-                                }
-                              }}
-                              className={`group text-primary/50 hover:bg-accent hover:text-primary aria-selected:bg-accent aria-selected:text-primary focus-visible:ring-primary/50 relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-sm ease-out outline-none select-none focus-visible:ring-2 ${
-                                newMemberRole === "write" ? "bg-accent/50" : ""
-                              }`}
-                              aria-label="Select write permission"
-                            >
-                              <span className="bg-cmdk-kbd-disabled group-hover:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
-                                <FaPen
-                                  size={13}
-                                  className="text-primary/50 shrink-0"
-                                />
-                              </span>
-                              <span className="flex-1 text-left">Write</span>
-                              {newMemberRole === "write" && (
-                                <div className="text-primary h-2 w-2 shrink-0 rounded-full bg-current" />
-                              )}
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Members List */}
-                      {newDocMembers.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="text-primary/50 px-1 text-[10px] font-medium tracking-wider uppercase">
-                            Added Members
-                          </div>
-                          {newDocMembers.map((member) => (
-                            <div
-                              key={member.email}
-                              className="group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-default items-center gap-3 rounded-xl px-2 py-1.5 text-sm select-none"
-                            >
-                              <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
-                                {member.role === "write" ? (
-                                  <FaPen
-                                    size={13}
-                                    className="text-primary/50 shrink-0"
-                                  />
-                                ) : (
-                                  <FaEye
-                                    size={13}
-                                    className="text-primary/50 shrink-0"
-                                  />
-                                )}
-                              </span>
-                              <span className="flex-1">{member.email}</span>
-                              <Kbd className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 pointer-events-none items-center justify-center rounded-md border-none px-2 py-1 select-none">
-                                {member.role === "write"
-                                  ? "can write"
-                                  : "can read"}
-                              </Kbd>
-                              <button
-                                type="button"
-                                onClick={() => removeMember(member.email)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    removeMember(member.email);
-                                    // Focus next remove button or create button
-                                    setTimeout(() => {
-                                      const nextButton =
-                                        e.currentTarget.parentElement?.nextElementSibling?.querySelector(
-                                          '[aria-label^="Remove"]',
-                                        ) as HTMLButtonElement;
-                                      if (nextButton) {
-                                        nextButton.focus();
-                                      } else {
-                                        createButtonRef.current?.focus();
-                                      }
-                                    }, 0);
-                                  } else if (e.key === "Tab" && !e.shiftKey) {
-                                    // Tab to next remove button or create button
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const nextButton =
-                                      e.currentTarget.parentElement?.nextElementSibling?.querySelector(
-                                        '[aria-label^="Remove"]',
-                                      );
-                                    if (
-                                      nextButton instanceof HTMLButtonElement
-                                    ) {
-                                      nextButton.focus();
-                                    } else {
+                            </div>
+                            {isInCreateDocDetailView ? (
+                              <div className="bg-card flex items-center gap-2 rounded-2xl border py-2 pr-2 pl-3">
+                                <input
+                                  ref={newDocTitleInputRef}
+                                  value={newDocTitle}
+                                  onChange={(e) =>
+                                    setNewDocTitle(e.target.value)
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Escape") {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setIsInCreateDocDetailView(false);
+                                      setTimeout(() => {
+                                        const commandInput =
+                                          document.querySelector(
+                                            "[cmdk-input]",
+                                          ) as HTMLInputElement;
+                                        commandInput?.focus();
+                                      }, 0);
+                                    } else if (e.key === "Tab" && !e.shiftKey) {
+                                      // Tab to create button
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       createButtonRef.current?.focus();
                                     }
-                                  } else if (e.key === "Tab" && e.shiftKey) {
-                                    // Shift+Tab to previous remove button or add member button
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const prevButton =
-                                      e.currentTarget.parentElement?.previousElementSibling?.querySelector(
-                                        '[aria-label^="Remove"]',
-                                      ) as HTMLButtonElement;
-                                    if (prevButton) {
-                                      prevButton.focus();
-                                    } else {
-                                      addMemberButtonRef.current?.focus();
+                                    // Prevent command palette navigation when typing
+                                    if (e.target instanceof HTMLInputElement) {
+                                      e.stopPropagation();
                                     }
-                                  }
-                                  if (e.target instanceof HTMLButtonElement) {
-                                    e.stopPropagation();
-                                  }
-                                }}
-                                className="text-primary/50 hover:text-primary focus-visible:ring-primary/50 rounded-md p-1 outline-none focus-visible:ring-2"
-                                aria-label={`Remove ${member.email}`}
-                              >
-                                <FaXmark size={12} />
-                              </button>
-                            </div>
-                          ))}
+                                  }}
+                                  placeholder="Enter document name (optional)"
+                                  aria-label="Document title"
+                                  className="placeholder:text-primary/50 flex w-full py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                  autoFocus
+                                />
+                              </div>
+                            ) : (
+                              <div className="text-primary/40 text-sm">
+                                Select &quot;Title&quot; and press Enter to set
+                                document name.
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
+                      {createDocSubPage === "members" && (
+                        <div className="space-y-4">
+                          <div>
+                            <div className="mb-3 flex items-center justify-between">
+                              <h3 className="text-primary/50 text-xs font-medium tracking-wider uppercase">
+                                Members (optional)
+                              </h3>
+                              {!isInCreateDocDetailView && (
+                                <div className="flex items-center gap-2">
+                                  <KbdGroup className="flex items-center gap-0.5">
+                                    <Kbd className="bg-background pointer-events-none rounded-md border-none px-1.5 py-1 text-[10px] select-none">
+                                      Enter
+                                    </Kbd>
+                                  </KbdGroup>
+                                  <span className="text-primary/40 text-xs">
+                                    to add
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            {isInCreateDocDetailView ? (
+                              <div className="space-y-2">
+                                {/* Add Member Form */}
+                                <div className="flex items-center gap-2">
+                                  <Label className="bg-background/50 text-primary flex flex-1 items-center justify-between rounded-2xl border py-2 pr-2 pl-3 text-sm">
+                                    <input
+                                      ref={newMemberEmailInputRef}
+                                      type="email"
+                                      value={newMemberEmail}
+                                      onChange={(e) =>
+                                        setNewMemberEmail(e.target.value)
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (
+                                          e.key === "Enter" &&
+                                          !showRoleOptions
+                                        ) {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          void addMember();
+                                        } else if (
+                                          e.key === "Tab" &&
+                                          !e.shiftKey
+                                        ) {
+                                          // Tab to role selector
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          roleSelectorButtonRef.current?.focus();
+                                        } else if (
+                                          e.key === "Tab" &&
+                                          e.shiftKey
+                                        ) {
+                                          // Shift+Tab to title input
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          newDocTitleInputRef.current?.focus();
+                                        } else if (e.key === "Escape") {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          if (showRoleOptions) {
+                                            setShowRoleOptions(false);
+                                            roleSelectorButtonRef.current?.focus();
+                                          } else {
+                                            setIsInCreateDocDetailView(false);
+                                            setTimeout(() => {
+                                              const commandInput =
+                                                document.querySelector(
+                                                  "[cmdk-input]",
+                                                ) as HTMLInputElement;
+                                              commandInput?.focus();
+                                            }, 0);
+                                          }
+                                        }
+                                        // Prevent command palette navigation
+                                        if (
+                                          e.target instanceof HTMLInputElement
+                                        ) {
+                                          e.stopPropagation();
+                                        }
+                                      }}
+                                      placeholder="user@example.com"
+                                      className="placeholder:text-primary/50"
+                                      disabled={
+                                        createMutation.isPending ||
+                                        showRoleOptions
+                                      }
+                                      aria-label="Member email"
+                                    />
+                                    <AnimatePresence mode="wait">
+                                      {isValidEmailFormat(newMemberEmail) ? (
+                                        <motion.span
+                                          key="valid"
+                                          initial={{ opacity: 0 }}
+                                          animate={{
+                                            opacity: 1,
+                                            transition: { duration: 0.2 },
+                                          }}
+                                          exit={{
+                                            opacity: 0,
+                                            transition: { duration: 0.2 },
+                                          }}
+                                          className="group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-full bg-green-600 p-1"
+                                        >
+                                          <FaCheck
+                                            size={12}
+                                            className="text-primary shrink-0"
+                                          />
+                                        </motion.span>
+                                      ) : (
+                                        <motion.span
+                                          key="invalid"
+                                          initial={{ opacity: 0 }}
+                                          animate={{
+                                            opacity: 1,
+                                            transition: { duration: 0.2 },
+                                          }}
+                                          exit={{
+                                            opacity: 0,
+                                            transition: { duration: 0.2 },
+                                          }}
+                                          className="group-aria-selected:bg-accent-foreground/20 bg-cmdk-kbd-disabled flex items-center justify-center rounded-full p-1"
+                                        >
+                                          <FaCheck
+                                            size={12}
+                                            className="text-cmdk-kbd-active-foreground shrink-0"
+                                          />
+                                        </motion.span>
+                                      )}
+                                    </AnimatePresence>
+                                  </Label>
+                                  {!showRoleOptions && (
+                                    <button
+                                      ref={roleSelectorButtonRef}
+                                      type="button"
+                                      onClick={() => {
+                                        setShowRoleOptions(true);
+                                        // Focus first role option after a brief delay
+                                        setTimeout(() => {
+                                          firstRoleOptionRef.current?.focus();
+                                        }, 0);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (
+                                          e.key === "Enter" ||
+                                          e.key === " "
+                                        ) {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          setShowRoleOptions(true);
+                                          setTimeout(() => {
+                                            firstRoleOptionRef.current?.focus();
+                                          }, 0);
+                                        } else if (
+                                          e.key === "Tab" &&
+                                          !e.shiftKey
+                                        ) {
+                                          // Tab navigation logic:
+                                          // 1. If members exist, go to first remove button
+                                          // 2. If add member button is enabled (valid email), go to add member button
+                                          // 3. Otherwise, skip to create button
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          if (newDocMembers.length > 0) {
+                                            // If members exist, go to first remove button
+                                            const firstRemoveButton =
+                                              document.querySelector(
+                                                '[aria-label^="Remove"]',
+                                              ) as HTMLButtonElement;
+                                            firstRemoveButton?.focus();
+                                          } else {
+                                            // Check if add member button is enabled
+                                            const isAddMemberEnabled =
+                                              !createMutation.isPending &&
+                                              isValidEmailFormat(
+                                                newMemberEmail.trim(),
+                                              );
+                                            if (isAddMemberEnabled) {
+                                              addMemberButtonRef.current?.focus();
+                                            } else {
+                                              // Skip to create button if add member is disabled
+                                              createButtonRef.current?.focus();
+                                            }
+                                          }
+                                        } else if (
+                                          e.key === "Tab" &&
+                                          e.shiftKey
+                                        ) {
+                                          // Shift+Tab to email input
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          newMemberEmailInputRef.current?.focus();
+                                        }
+                                        if (
+                                          e.target instanceof HTMLButtonElement
+                                        ) {
+                                          e.stopPropagation();
+                                        }
+                                      }}
+                                      className="group aria-selected:bg-accent text-primary bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 focus-visible:ring-primary/50 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm outline-none select-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                      disabled={createMutation.isPending}
+                                      aria-label="Select permission role"
+                                      aria-expanded={showRoleOptions}
+                                      aria-haspopup="true"
+                                    >
+                                      {newMemberRole === "write" ? (
+                                        <FaPen
+                                          size={13}
+                                          className="text-primary shrink-0"
+                                        />
+                                      ) : (
+                                        <FaEye
+                                          size={13}
+                                          className="text-primary shrink-0"
+                                        />
+                                      )}
+                                      <span className="capitalize">
+                                        {newMemberRole}
+                                      </span>
+                                      <FaChevronDown
+                                        size={13}
+                                        className="text-primary/50 shrink-0"
+                                      />
+                                    </button>
+                                  )}
+                                  {!showRoleOptions && (
+                                    <button
+                                      ref={addMemberButtonRef}
+                                      type="button"
+                                      onClick={() => void addMember()}
+                                      onKeyDown={(e) => {
+                                        if (
+                                          e.key === "Enter" ||
+                                          e.key === " "
+                                        ) {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          void addMember();
+                                        } else if (
+                                          e.key === "Tab" &&
+                                          !e.shiftKey
+                                        ) {
+                                          // Tab: if members exist, go to first remove button, else go to create button
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          if (newDocMembers.length > 0) {
+                                            const firstRemoveButton =
+                                              document.querySelector(
+                                                '[aria-label^="Remove"]',
+                                              ) as HTMLButtonElement;
+                                            firstRemoveButton?.focus();
+                                          } else {
+                                            createButtonRef.current?.focus();
+                                          }
+                                        } else if (
+                                          e.key === "Tab" &&
+                                          e.shiftKey
+                                        ) {
+                                          // Shift+Tab to role selector
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          roleSelectorButtonRef.current?.focus();
+                                        }
+                                        if (
+                                          e.target instanceof HTMLButtonElement
+                                        ) {
+                                          e.stopPropagation();
+                                        }
+                                      }}
+                                      className="group text-primary-foreground bg-primary aria-selected:bg-accent aria-selected:text-primary group-aria-selected:bg-accent-foreground/20 disabled:bg-cmdk-kbd-disabled disabled:text-cmdk-kbd-active-foreground focus-visible:ring-primary/50 flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2 pr-2 pl-2.5 text-sm outline-none select-none focus-visible:ring-2 disabled:cursor-not-allowed"
+                                      disabled={
+                                        createMutation.isPending ||
+                                        !isValidEmailFormat(
+                                          newMemberEmail.trim(),
+                                        )
+                                      }
+                                      aria-label="Add member"
+                                    >
+                                      Add
+                                      <FaPlus size={13} />
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Role Options */}
+                                <AnimatePresence>
+                                  {showRoleOptions && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -4 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -4 }}
+                                      transition={{ duration: 0.15 }}
+                                      className="space-y-1"
+                                    >
+                                      <button
+                                        ref={firstRoleOptionRef}
+                                        type="button"
+                                        onClick={() => {
+                                          setNewMemberRole("read");
+                                          setShowRoleOptions(false);
+                                          roleSelectorButtonRef.current?.focus();
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (
+                                            e.key === "Enter" ||
+                                            e.key === " "
+                                          ) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setNewMemberRole("read");
+                                            setShowRoleOptions(false);
+                                            roleSelectorButtonRef.current?.focus();
+                                          } else if (e.key === "ArrowDown") {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            // Focus write option
+                                            const writeButton = e.currentTarget
+                                              .nextElementSibling as HTMLButtonElement;
+                                            writeButton?.focus();
+                                          } else if (e.key === "Escape") {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setShowRoleOptions(false);
+                                            roleSelectorButtonRef.current?.focus();
+                                          }
+                                          if (
+                                            e.target instanceof
+                                            HTMLButtonElement
+                                          ) {
+                                            e.stopPropagation();
+                                          }
+                                        }}
+                                        className={`group text-primary/50 hover:bg-accent hover:text-primary aria-selected:bg-accent aria-selected:text-primary focus-visible:ring-primary/50 relative flex w-full cursor-pointer items-center gap-3 rounded-xl py-1.5 pr-3 pl-2 text-sm ease-out outline-none select-none focus-visible:ring-2 ${
+                                          newMemberRole === "read"
+                                            ? "bg-accent/50"
+                                            : ""
+                                        }`}
+                                        aria-label="Select read permission"
+                                      >
+                                        <span className="bg-cmdk-kbd-disabled group-hover:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
+                                          <FaEye
+                                            size={13}
+                                            className="text-primary/50 shrink-0"
+                                          />
+                                        </span>
+                                        <span className="flex-1 text-left">
+                                          Read
+                                        </span>
+                                        {newMemberRole === "read" && (
+                                          <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNewMemberRole("write");
+                                          setShowRoleOptions(false);
+                                          roleSelectorButtonRef.current?.focus();
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (
+                                            e.key === "Enter" ||
+                                            e.key === " "
+                                          ) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setNewMemberRole("write");
+                                            setShowRoleOptions(false);
+                                            roleSelectorButtonRef.current?.focus();
+                                          } else if (e.key === "ArrowUp") {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            // Focus read option
+                                            const readButton = e.currentTarget
+                                              .previousElementSibling as HTMLButtonElement;
+                                            readButton?.focus();
+                                          } else if (e.key === "Escape") {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setShowRoleOptions(false);
+                                            roleSelectorButtonRef.current?.focus();
+                                          }
+                                          if (
+                                            e.target instanceof
+                                            HTMLButtonElement
+                                          ) {
+                                            e.stopPropagation();
+                                          }
+                                        }}
+                                        className={`group text-primary/50 hover:bg-accent hover:text-primary aria-selected:bg-accent aria-selected:text-primary focus-visible:ring-primary/50 relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-sm ease-out outline-none select-none focus-visible:ring-2 ${
+                                          newMemberRole === "write"
+                                            ? "bg-accent/50"
+                                            : ""
+                                        }`}
+                                        aria-label="Select write permission"
+                                      >
+                                        <span className="bg-cmdk-kbd-disabled group-hover:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
+                                          <FaPen
+                                            size={13}
+                                            className="text-primary/50 shrink-0"
+                                          />
+                                        </span>
+                                        <span className="flex-1 text-left">
+                                          Write
+                                        </span>
+                                        {newMemberRole === "write" && (
+                                          <div className="text-primary h-2 w-2 shrink-0 rounded-full bg-current" />
+                                        )}
+                                      </button>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+
+                                {/* Members List */}
+                                {newDocMembers.length > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-primary/50 px-1 text-[10px] font-medium tracking-wider uppercase">
+                                      Added Members
+                                    </div>
+                                    {newDocMembers.map((member) => (
+                                      <div
+                                        key={member.email}
+                                        className="group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-default items-center gap-3 rounded-xl px-2 py-1.5 text-sm select-none"
+                                      >
+                                        <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
+                                          {member.role === "write" ? (
+                                            <FaPen
+                                              size={13}
+                                              className="text-primary/50 shrink-0"
+                                            />
+                                          ) : (
+                                            <FaEye
+                                              size={13}
+                                              className="text-primary/50 shrink-0"
+                                            />
+                                          )}
+                                        </span>
+                                        <span className="flex-1">
+                                          {member.email}
+                                        </span>
+                                        <Kbd className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 pointer-events-none items-center justify-center rounded-md border-none px-2 py-1 select-none">
+                                          {member.role === "write"
+                                            ? "can write"
+                                            : "can read"}
+                                        </Kbd>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeMember(member.email)
+                                          }
+                                          onKeyDown={(e) => {
+                                            if (
+                                              e.key === "Enter" ||
+                                              e.key === " "
+                                            ) {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              removeMember(member.email);
+                                              // Focus next remove button or create button
+                                              setTimeout(() => {
+                                                const nextButton =
+                                                  e.currentTarget.parentElement?.nextElementSibling?.querySelector(
+                                                    '[aria-label^="Remove"]',
+                                                  ) as HTMLButtonElement;
+                                                if (nextButton) {
+                                                  nextButton.focus();
+                                                } else {
+                                                  createButtonRef.current?.focus();
+                                                }
+                                              }, 0);
+                                            } else if (
+                                              e.key === "Tab" &&
+                                              !e.shiftKey
+                                            ) {
+                                              // Tab to next remove button or create button
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              const nextButton =
+                                                e.currentTarget.parentElement?.nextElementSibling?.querySelector(
+                                                  '[aria-label^="Remove"]',
+                                                );
+                                              if (
+                                                nextButton instanceof
+                                                HTMLButtonElement
+                                              ) {
+                                                nextButton.focus();
+                                              } else {
+                                                createButtonRef.current?.focus();
+                                              }
+                                            } else if (
+                                              e.key === "Tab" &&
+                                              e.shiftKey
+                                            ) {
+                                              // Shift+Tab to previous remove button or add member button
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              const prevButton =
+                                                e.currentTarget.parentElement?.previousElementSibling?.querySelector(
+                                                  '[aria-label^="Remove"]',
+                                                ) as HTMLButtonElement;
+                                              if (prevButton) {
+                                                prevButton.focus();
+                                              } else {
+                                                addMemberButtonRef.current?.focus();
+                                              }
+                                            }
+                                            if (
+                                              e.target instanceof
+                                              HTMLButtonElement
+                                            ) {
+                                              e.stopPropagation();
+                                            }
+                                          }}
+                                          className="text-primary/50 hover:text-primary focus-visible:ring-primary/50 rounded-md p-1 outline-none focus-visible:ring-2"
+                                          aria-label={`Remove ${member.email}`}
+                                        >
+                                          <FaXmark size={12} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-primary/40 text-sm">
+                                Select &quot;Members&quot; and press Enter to
+                                add members.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {/* Create Button Section - visible in both views */}
+                      <div className="border-border space-y-2 border-t pt-4">
+                        <button
+                          ref={createButtonRef}
+                          type="button"
+                          onClick={() => void handleCreateDocument()}
+                          onKeyDown={(e) => {
+                            if (
+                              (e.key === "Enter" || e.key === " ") &&
+                              !showRoleOptions
+                            ) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void handleCreateDocument();
+                            } else if (e.key === "Tab" && e.shiftKey) {
+                              // Shift+Tab: if members exist, go to last remove button, else go to add member button
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (newDocMembers.length > 0) {
+                                const removeButtons = document.querySelectorAll(
+                                  '[aria-label^="Remove"]',
+                                );
+                                const lastButton = removeButtons[
+                                  removeButtons.length - 1
+                                ] as HTMLButtonElement;
+                                lastButton?.focus();
+                              } else {
+                                addMemberButtonRef.current?.focus();
+                              }
+                            }
+                            if (e.target instanceof HTMLButtonElement) {
+                              e.stopPropagation();
+                            }
+                          }}
+                          className="group text-primary-foreground bg-primary aria-selected:bg-accent aria-selected:text-primary group-aria-selected:bg-accent-foreground/20 disabled:bg-cmdk-kbd-disabled disabled:text-cmdk-kbd-active-foreground focus-visible:ring-primary/50 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm outline-none select-none focus-visible:ring-2 disabled:cursor-not-allowed"
+                          disabled={createMutation.isPending}
+                          aria-label="Create document"
+                        >
+                          <AnimatePresence mode="wait" initial={false}>
+                            {createMutation.isPending ? (
+                              <motion.span
+                                key="loading"
+                                variants={variants}
+                                initial="hidden"
+                                animate="visible"
+                                exit="hidden"
+                                className="flex items-center justify-center gap-2"
+                              >
+                                <Spinner className="size-4" />
+                                Creating new document...
+                              </motion.span>
+                            ) : (
+                              <motion.span
+                                key="create"
+                                variants={variants}
+                                initial="hidden"
+                                animate="visible"
+                                className="flex items-center justify-center gap-2"
+                                exit="hidden"
+                              >
+                                <FaPlus size={13} />
+                                Create new document
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Create Button Section */}
-                  <div className="space-y-2 pt-2">
-                    <button
-                      ref={createButtonRef}
-                      type="button"
-                      onClick={() => void handleCreateDocument()}
-                      onKeyDown={(e) => {
-                        if (
-                          (e.key === "Enter" || e.key === " ") &&
-                          !showRoleOptions
-                        ) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void handleCreateDocument();
-                        } else if (e.key === "Tab" && e.shiftKey) {
-                          // Shift+Tab: if members exist, go to last remove button, else go to add member button
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (newDocMembers.length > 0) {
-                            const removeButtons = document.querySelectorAll(
-                              '[aria-label^="Remove"]',
-                            );
-                            const lastButton = removeButtons[
-                              removeButtons.length - 1
-                            ] as HTMLButtonElement;
-                            lastButton?.focus();
-                          } else {
-                            addMemberButtonRef.current?.focus();
-                          }
-                        }
-                        if (e.target instanceof HTMLButtonElement) {
-                          e.stopPropagation();
-                        }
-                      }}
-                      className="group text-primary-foreground bg-primary aria-selected:bg-accent aria-selected:text-primary group-aria-selected:bg-accent-foreground/20 disabled:bg-cmdk-kbd-disabled disabled:text-cmdk-kbd-active-foreground focus-visible:ring-primary/50 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm outline-none select-none focus-visible:ring-2 disabled:cursor-not-allowed"
-                      disabled={createMutation.isPending}
-                      aria-label="Create document"
-                    >
-                      <AnimatePresence mode="wait" initial={false}>
-                        {createMutation.isPending ? (
-                          <motion.span
-                            key="loading"
-                            variants={variants}
-                            initial="hidden"
-                            animate="visible"
-                            exit="hidden"
-                            className="flex items-center justify-center gap-2"
-                          >
-                            <Spinner className="size-4" />
-                            Creating new document...
-                          </motion.span>
-                        ) : (
-                          <motion.span
-                            key="create"
-                            variants={variants}
-                            initial="hidden"
-                            animate="visible"
-                            className="flex items-center justify-center gap-2"
-                            exit="hidden"
-                          >
-                            <FaPlus size={13} />
-                            Create new document
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </button>
-                  </div>
-                </div>
+                </>
               )}
 
               {!page && (
