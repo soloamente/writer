@@ -9,17 +9,7 @@ import {
 import { Command } from "cmdk";
 import { useTheme } from "next-themes";
 import { api } from "@/trpc/react";
-import {
-  Search,
-  Home,
-  Plus,
-  Settings,
-  FileText,
-  Users,
-  Edit,
-  Eye,
-  Loader2,
-} from "lucide-react";
+import { Search, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Label } from "@/components/ui/label";
@@ -30,7 +20,6 @@ import {
   FaArrowRight,
   FaEye,
   FaFile,
-  FaFileInvoice,
   FaGear,
   FaHouse,
   FaMoon,
@@ -48,14 +37,40 @@ import {
 } from "react-icons/fa6";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { toastManager } from "@/components/ui/toast";
-import { toggleEditMode, getEditMode, getEditorInstance } from "@/app/editor/_components/editor";
+import {
+  toggleEditMode,
+  getEditMode,
+  getEditorInstance,
+} from "@/app/editor/_components/editor";
 import { TOGGLE_EDIT_MODE_COMMAND } from "@/lib/lexical/commands";
 import { InviteUserButton } from "@/app/editor/_components/InviteUserButton";
 import { Spinner } from "@/components/ui/spinner";
 import { AnimatePresence, motion } from "motion/react";
 import { isValidEmailFormat, validateEmail } from "@/lib/email-validation";
-import { FaChevronDown, FaCheck, FaXmark, FaRightFromBracket } from "react-icons/fa6";
+import {
+  FaChevronDown,
+  FaCheck,
+  FaXmark,
+  FaRightFromBracket,
+} from "react-icons/fa6";
 import { useSession, signOut } from "@/lib/auth-client";
+
+// Type for document returned from api.document.getAll
+type DocumentWithMetadata = {
+  id: string;
+  title: string;
+  content: unknown;
+  updatedAt: Date;
+  userId: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  isOwner: boolean;
+  isFavorite: boolean;
+  role?: "read" | "write";
+};
 
 interface CommandPaletteProps {
   documentId: string;
@@ -93,17 +108,22 @@ export function CommandPalette({
     string | null
   >(null);
   const [showDocumentActions, setShowDocumentActions] = useState(false);
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(
-    null,
-  );
-  const [triggerPosition, setTriggerPosition] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const selectedDocumentIdRef = useRef<string | null>(null);
+
+  // State for sidebar navigation in nested pages (like account)
+  // Tracks which sub-page/view is selected and whether we're in detail view
+  const [accountSubPage, setAccountSubPage] = useState<string | null>(null);
+  const [isInDetailView, setIsInDetailView] = useState(false);
+  const accountPageInitializedRef = useRef(false);
+
+  // State for editing account info
+  const [isEditingAccountInfo, setIsEditingAccountInfo] = useState(false);
+  const [accountName, setAccountName] = useState("");
+  const [accountUsername, setAccountUsername] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
   const newDocTitleInputRef = useRef<HTMLInputElement>(null);
+  const signOutButtonRef = useRef<HTMLButtonElement>(null);
   const newMemberEmailInputRef = useRef<HTMLInputElement>(null);
   const roleSelectorButtonRef = useRef<HTMLButtonElement>(null);
   const addMemberButtonRef = useRef<HTMLButtonElement>(null);
@@ -123,9 +143,32 @@ export function CommandPalette({
 
   const utils = api.useUtils?.();
   const inviteMutation = api.document.inviteUser.useMutation();
-  
+
   // Get user session for account info
-  const { data: session } = useSession();
+  const { data: session, refetch: refetchSession } = useSession();
+
+  // User update mutation
+  const updateUserMutation = api.user.update.useMutation({
+    onSuccess: () => {
+      toastManager.add({
+        title: "Account updated successfully",
+        type: "success",
+      });
+      setIsEditingAccountInfo(false);
+      // Manually refetch session to get updated user data
+      void refetchSession();
+    },
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String(error.message)
+          : "Failed to update account";
+      toastManager.add({
+        title: message,
+        type: "error",
+      });
+    },
+  });
 
   const deleteMutation = api.document.delete.useMutation({
     onSuccess: () => {
@@ -139,9 +182,13 @@ export function CommandPalette({
       setOpen(false);
       router.push("/editor");
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String(error.message)
+          : "Failed to delete document";
       toastManager.add({
-        title: error.message ?? "Failed to delete document",
+        title: message,
         type: "error",
       });
     },
@@ -155,9 +202,13 @@ export function CommandPalette({
       });
       void utils?.document.getAll.invalidate();
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String(error.message)
+          : "Failed to update favorite";
       toastManager.add({
-        title: error.message ?? "Failed to update favorite",
+        title: message,
         type: "error",
       });
     },
@@ -176,7 +227,7 @@ export function CommandPalette({
         );
         try {
           await Promise.all(invitePromises);
-        } catch (error) {
+        } catch {
           // Some invites might fail, but document is created
           toastManager.add({
             title: "Document created, but some invitations may have failed",
@@ -197,9 +248,13 @@ export function CommandPalette({
       setNewMemberRole("write");
       void utils?.document.getAll.invalidate();
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String(error.message)
+          : "Failed to create document";
       toastManager.add({
-        title: error.message ?? "Failed to create document",
+        title: message,
         type: "error",
       });
     },
@@ -289,7 +344,8 @@ export function CommandPalette({
     // Warn about disposable emails but allow them
     if (validationResult.disposable) {
       toastManager.add({
-        title: "This email address appears to be from a disposable email service",
+        title:
+          "This email address appears to be from a disposable email service",
         type: "warning",
       });
     }
@@ -385,8 +441,80 @@ export function CommandPalette({
       setNewMemberEmail("");
       setNewMemberRole("write");
       setShowRoleOptions(false);
+      // Reset sidebar navigation state
+      setAccountSubPage(null);
+      setIsInDetailView(false);
+      // Reset account editing state
+      setIsEditingAccountInfo(false);
+      setAccountName("");
+      setAccountUsername("");
     }
-  }, [open, documentId, canWrite]);
+  }, [open, documentId, canWrite, documentTitle]);
+
+  // Initialize account form values when entering account info page
+  useEffect(() => {
+    if (accountSubPage === "info" && session?.user && !isEditingAccountInfo) {
+      setAccountName(session.user.name ?? "");
+      setAccountUsername(session.user.username ?? "");
+    }
+  }, [accountSubPage, session?.user, isEditingAccountInfo]);
+
+  // Auto-focus first input when entering edit mode
+  useEffect(() => {
+    if (isEditingAccountInfo && accountSubPage === "info") {
+      const timer = setTimeout(() => {
+        nameInputRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isEditingAccountInfo, accountSubPage]);
+
+  // Refocus Command component when exiting edit mode to restore keyboard navigation
+  const prevIsEditingAccountInfo = useRef(isEditingAccountInfo);
+  useEffect(() => {
+    // If we just exited edit mode (was editing, now not editing)
+    if (
+      prevIsEditingAccountInfo.current &&
+      !isEditingAccountInfo &&
+      accountSubPage === "info"
+    ) {
+      const timer = setTimeout(() => {
+        // Blur any focused inputs to release focus
+        if (document.activeElement instanceof HTMLInputElement) {
+          document.activeElement.blur();
+        }
+        // Ensure the account.info item is selected so arrow keys work
+        setSelectedValue("account.info");
+        // Small delay to let cmdk update its internal state
+        setTimeout(() => {
+          // Focus Command.Input to restore keyboard navigation context
+          const commandInput = document.querySelector("[cmdk-input]");
+          if (commandInput instanceof HTMLInputElement) {
+            commandInput.focus();
+          }
+        }, 10);
+      }, 0);
+      prevIsEditingAccountInfo.current = isEditingAccountInfo;
+      return () => clearTimeout(timer);
+    }
+    prevIsEditingAccountInfo.current = isEditingAccountInfo;
+  }, [isEditingAccountInfo, accountSubPage]);
+
+  // Reset sidebar state when exiting account page, reset initialization flag
+  useEffect(() => {
+    if (page !== "account") {
+      setAccountSubPage(null);
+      setIsInDetailView(false);
+      accountPageInitializedRef.current = false;
+    }
+  }, [page]);
+
+  // Reset detail view when accountSubPage becomes null
+  useEffect(() => {
+    if (page === "account" && !accountSubPage) {
+      setIsInDetailView(false);
+    }
+  }, [accountSubPage, page]);
 
   // Auto-focus title input when createDocument page opens
   useEffect(() => {
@@ -398,14 +526,71 @@ export function CommandPalette({
     }
   }, [page]);
 
-  // When entering a page, set a sensible default selection
+  // Auto-focus sign out button when entering logout page detail view
   useEffect(() => {
-    if (page === "theme") {
-      setSelectedValue("theme.dark");
-    } else {
-      setSelectedValue(undefined);
+    if (
+      accountSubPage === "logout" &&
+      isInDetailView &&
+      signOutButtonRef.current
+    ) {
+      const timer = setTimeout(() => {
+        signOutButtonRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [page]);
+  }, [accountSubPage, isInDetailView]);
+
+  // When entering a page, set a sensible default selection
+  // This ensures users can immediately press Enter without needing arrow keys
+  useEffect(() => {
+    if (!page) {
+      // Main page - no default selection
+      setSelectedValue(undefined);
+      return;
+    }
+
+    // Use requestAnimationFrame to ensure DOM has updated before setting selection
+    // This is especially important for pages with async data like openDocument
+    requestAnimationFrame(() => {
+      switch (page) {
+        case "theme":
+          // Default to dark theme option
+          setSelectedValue("theme.dark");
+          break;
+        case "account":
+          // Default to first sidebar item (Account Info)
+          // Only set default selection when first entering the page (not when navigating within)
+          // Detail view is only entered when user presses Enter on an item
+          if (!accountPageInitializedRef.current) {
+            setSelectedValue("account.info");
+            setAccountSubPage("info");
+            // Don't auto-enter detail view - user must press Enter
+            accountPageInitializedRef.current = true;
+          }
+          break;
+        case "openDocument":
+          // Default to first document if available
+          if (documents && documents.length > 0 && documents[0]) {
+            setSelectedValue(documents[0].title ?? "Untitled");
+          } else {
+            setSelectedValue(undefined);
+          }
+          break;
+        case "members":
+          // Default to invite user button
+          setSelectedValue("invite.user");
+          break;
+        case "title":
+        case "createDocument":
+          // These pages have input fields that are auto-focused
+          // No need to set selectedValue as the input handles focus
+          setSelectedValue(undefined);
+          break;
+        default:
+          setSelectedValue(undefined);
+      }
+    });
+  }, [page, documents]); // Only run when page or documents change, not when navigating within account page
 
   // Refocus Command.Input when exiting nested pages to restore keyboard navigation
   const prevPagesLength = useRef(pages.length);
@@ -415,10 +600,10 @@ export function CommandPalette({
       // Small delay to ensure the DOM has updated
       const timer = setTimeout(() => {
         // Find the Command.Input element using the cmdk-input attribute
-        const commandInput = document.querySelector(
-          "[cmdk-input]",
-        ) as HTMLInputElement;
-        commandInput?.focus();
+        const commandInput = document.querySelector("[cmdk-input]");
+        if (commandInput instanceof HTMLInputElement) {
+          commandInput.focus();
+        }
       }, 0);
       prevPagesLength.current = pages.length;
       return () => clearTimeout(timer);
@@ -452,8 +637,27 @@ export function CommandPalette({
               const doc = documents.find(
                 (d) => (d.title ?? "Untitled") === value,
               );
-              if (doc) {
+              if (doc?.id) {
                 selectedDocumentIdRef.current = doc.id;
+              }
+            }
+
+            // Auto-update account sidebar detail view when navigating with arrow keys
+            // Note: isInDetailView is only set when Enter is pressed, not on navigation
+            if (page === "account" && value) {
+              if (value === "account.info") {
+                setAccountSubPage("info");
+                // Don't set isInDetailView here - only when Enter is pressed
+              } else if (value === "account.logout") {
+                // Prevent navigation to logout only when actively editing account info
+                // This keeps users in edit mode and prevents accidental navigation
+                if (accountSubPage === "info" && isEditingAccountInfo) {
+                  // Reset selection back to account.info to prevent navigation while editing
+                  setSelectedValue("account.info");
+                  return;
+                }
+                setAccountSubPage("logout");
+                // Don't set isInDetailView here - only when Enter is pressed
               }
             }
           }}
@@ -463,7 +667,7 @@ export function CommandPalette({
               !!target &&
               (target.tagName === "INPUT" ||
                 target.tagName === "TEXTAREA" ||
-                (target as HTMLElement).isContentEditable);
+                (target instanceof HTMLElement && target.isContentEditable));
 
             // Ctrl+B or Cmd+B: show document actions popover
             if (
@@ -498,10 +702,10 @@ export function CommandPalette({
               if (!selectedDoc) {
                 const selectedItem = document.querySelector(
                   '[cmdk-item][aria-selected="true"]',
-                ) as HTMLElement | null;
-                if (selectedItem) {
+                );
+                if (selectedItem instanceof HTMLElement) {
                   const itemValue =
-                    selectedItem.getAttribute("data-value") ||
+                    selectedItem.getAttribute("data-value") ??
                     selectedItem.textContent?.trim();
                   if (itemValue) {
                     selectedDoc = documents.find(
@@ -521,7 +725,6 @@ export function CommandPalette({
 
               if (selectedDoc) {
                 // Set the selected document ID first
-                setSelectedDocumentId(selectedDoc.id);
                 setSelectedDocumentForActions(selectedDoc.id);
 
                 // Find the selected item's DOM element and get its position
@@ -529,16 +732,9 @@ export function CommandPalette({
                 requestAnimationFrame(() => {
                   const itemElement = document.querySelector(
                     `[data-value="${selectedDoc.title ?? "Untitled"}"]`,
-                  ) as HTMLElement | null;
-                  if (itemElement) {
-                    const rect = itemElement.getBoundingClientRect();
-                    setTriggerPosition({
-                      top: rect.top,
-                      left: rect.left,
-                      width: rect.width,
-                      height: rect.height,
-                    });
-                    // Only show after position is set
+                  );
+                  if (itemElement instanceof HTMLElement) {
+                    // Show document actions popover
                     setShowDocumentActions(true);
                   } else {
                     // Fallback: show anyway without position
@@ -549,7 +745,11 @@ export function CommandPalette({
               return;
             }
 
-            // Escape: close actions popover first, then nested page
+            // Escape: handle navigation hierarchy
+            // 1. Close actions popover
+            // 2. Cancel editing account info (return to view mode)
+            // 3. Exit detail view (return to sidebar view)
+            // 4. Exit nested page (return to main page)
             if (e.key === "Escape") {
               if (showDocumentActions) {
                 e.preventDefault();
@@ -558,10 +758,163 @@ export function CommandPalette({
                 setSelectedDocumentForActions(null);
                 return;
               }
+              // If editing account info, cancel editing
+              if (
+                isEditingAccountInfo &&
+                page === "account" &&
+                accountSubPage === "info"
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsEditingAccountInfo(false);
+                // Reset form values to original
+                if (session?.user) {
+                  setAccountName(session.user.name ?? "");
+                  setAccountUsername(session.user.username ?? "");
+                }
+                return;
+              }
+              // If in detail view (but not editing), exit detail view to return to sidebar
+              if (
+                isInDetailView &&
+                page === "account" &&
+                accountSubPage !== null
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsInDetailView(false);
+                // Ensure the correct sidebar item is selected after exiting detail view
+                const selectedItemValue =
+                  accountSubPage === "logout"
+                    ? "account.logout"
+                    : accountSubPage === "info"
+                      ? "account.info"
+                      : null;
+                if (selectedItemValue) {
+                  setSelectedValue(selectedItemValue);
+                  // Restore focus to enable keyboard navigation
+                  setTimeout(() => {
+                    // Blur any focused buttons or inputs to release focus
+                    if (
+                      document.activeElement instanceof HTMLButtonElement ||
+                      document.activeElement instanceof HTMLInputElement
+                    ) {
+                      document.activeElement.blur();
+                    }
+                    // Small delay to let cmdk update its internal state
+                    setTimeout(() => {
+                      // Try to focus the selected sidebar item first
+                      const selectedItem = document.querySelector(
+                        `[cmdk-item][value="${selectedItemValue}"]`,
+                      );
+                      if (selectedItem instanceof HTMLElement) {
+                        selectedItem.focus();
+                      } else {
+                        // Fallback: focus Command.Input to restore keyboard navigation context
+                        const commandInput =
+                          document.querySelector("[cmdk-input]");
+                        if (commandInput instanceof HTMLInputElement) {
+                          commandInput.focus();
+                        }
+                      }
+                    }, 10);
+                  }, 0);
+                }
+                return;
+              }
+              // If in nested page, go back to main page
               if (pages.length > 0) {
                 e.preventDefault();
                 e.stopPropagation();
                 setPages((prev) => prev.slice(0, -1));
+                return;
+              }
+            }
+
+            // Enter: execute action for account sidebar items or enter edit mode
+            if (e.key === "Enter" && !isTypingInField && page === "account") {
+              // Don't intercept Enter if focus is on a button or other interactive element in the content area
+              const target = e.target as HTMLElement | null;
+              const activeElement = document.activeElement;
+
+              // If focus is on a button, let it handle Enter naturally
+              if (
+                target?.tagName === "BUTTON" ||
+                activeElement?.tagName === "BUTTON"
+              ) {
+                // Let the button handle Enter naturally
+                return;
+              }
+
+              // If in detail view and focus is not on a sidebar item, don't intercept
+              // (allows buttons and other content area elements to handle Enter)
+              if (isInDetailView) {
+                const isFocusOnSidebarItem = activeElement?.closest(
+                  "[data-account-sidebar-item]",
+                );
+                if (!isFocusOnSidebarItem) {
+                  // Focus is in content area, let it handle Enter
+                  return;
+                }
+              }
+
+              // Check sidebar item selection
+              const selectedItem = document.querySelector(
+                '[cmdk-item][aria-selected="true"][data-account-sidebar-item]',
+              );
+
+              // Handle account info
+              if (selectedItem instanceof HTMLElement) {
+                const subPage = selectedItem.getAttribute(
+                  "data-account-sidebar-item",
+                );
+
+                if (subPage === "info") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // If not yet on account info page, navigate to it first
+                  if (accountSubPage !== "info") {
+                    setAccountSubPage("info");
+                  }
+                  // Enter detail view and edit mode
+                  setIsInDetailView(true);
+                  setIsEditingAccountInfo(true);
+                  return;
+                } else if (subPage === "logout") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // If not yet on logout page, navigate to it first
+                  if (accountSubPage !== "logout") {
+                    setAccountSubPage("logout");
+                  }
+                  // Enter detail view to show the sign out button
+                  setIsInDetailView(true);
+                  // Focus the sign out button after entering detail view
+                  setTimeout(() => {
+                    signOutButtonRef.current?.focus();
+                  }, 0);
+                  return;
+                }
+              }
+
+              // Fallback: if already on logout page but not in detail view, enter detail view
+              if (accountSubPage === "logout" && !isInDetailView) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsInDetailView(true);
+                // Focus the sign out button after entering detail view
+                setTimeout(() => {
+                  signOutButtonRef.current?.focus();
+                }, 0);
+                return;
+              }
+
+              // Fallback: if already on info page but not in detail view, enter detail view
+              if (accountSubPage === "info" && !isInDetailView) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsInDetailView(true);
+                setIsEditingAccountInfo(true);
                 return;
               }
             }
@@ -807,64 +1160,440 @@ export function CommandPalette({
 
               {page === "account" && (
                 <>
-                  <Command.Group className="mb-8">
-                    {/* User Info Display */}
-                    {session?.user && (
-                      <div className="bg-card mx-2 mb-4 rounded-2xl border px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <span className="bg-cmdk-kbd-disabled flex items-center justify-center rounded-full p-2">
+                  {/* Always show sidebar + detail view layout */}
+                  <div className="flex h-full">
+                    {/* Left sidebar - animated width */}
+                    <motion.div
+                      className="border-border border-r pr-2"
+                      animate={{
+                        width: isInDetailView ? 64 : 192,
+                      }}
+                      transition={{
+                        duration: 0.25,
+                        ease: [0.215, 0.61, 0.355, 1], // ease-out-cubic
+                      }}
+                    >
+                      <Command.Group className="mb-0">
+                        <Command.Item
+                          value="account.info"
+                          data-account-sidebar-item="info"
+                          onSelect={() => {
+                            // If already on account info page and not editing, enter edit mode
+                            if (
+                              accountSubPage === "info" &&
+                              !isEditingAccountInfo
+                            ) {
+                              setIsEditingAccountInfo(true);
+                              setIsInDetailView(true);
+                            } else if (accountSubPage !== "info") {
+                              // If not on info page, navigate to it (but don't enter detail view yet)
+                              setAccountSubPage("info");
+                              // Detail view will be entered when user presses Enter
+                            }
+                          }}
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                            isInDetailView
+                              ? "justify-center gap-0 px-2"
+                              : "gap-3 pr-3 pl-2"
+                          } ${accountSubPage === "info" ? "bg-accent/50" : ""}`}
+                        >
+                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
                             <FaUser
-                              size={16}
+                              size={13}
                               className="text-primary/50 shrink-0"
                             />
                           </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-primary text-sm font-medium truncate">
-                              {session.user.name ?? "User"}
+                          <AnimatePresence mode="wait">
+                            {!isInDetailView && (
+                              <motion.span
+                                className="flex-1"
+                                initial={{ opacity: 1, width: "auto" }}
+                                exit={{ opacity: 0, width: 0 }}
+                                transition={{
+                                  duration: 0.2,
+                                  ease: [0.215, 0.61, 0.355, 1],
+                                }}
+                              >
+                                Account Info
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                          {accountSubPage === "info" && !isInDetailView && (
+                            <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                          )}
+                        </Command.Item>
+                        <Command.Item
+                          value="account.logout"
+                          data-account-sidebar-item="logout"
+                          onSelect={() => {
+                            // If already on logout page, enter detail view (this handles Enter key press)
+                            if (
+                              accountSubPage === "logout" &&
+                              !isInDetailView
+                            ) {
+                              setIsInDetailView(true);
+                              // Focus the sign out button after entering detail view
+                              setTimeout(() => {
+                                signOutButtonRef.current?.focus();
+                              }, 0);
+                              return;
+                            }
+                            // Navigate to logout sub-page (but don't enter detail view yet)
+                            // User must press Enter again to enter detail view and see the sign out button
+                            if (
+                              !isInDetailView ||
+                              accountSubPage !== "logout"
+                            ) {
+                              setAccountSubPage("logout");
+                            }
+                            // Detail view will be entered when user presses Enter (handled by Enter key handler or this onSelect)
+                          }}
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                            isInDetailView
+                              ? "justify-center gap-0 px-2"
+                              : "gap-3 pr-3 pl-2"
+                          } ${
+                            accountSubPage === "logout" ? "bg-accent/50" : ""
+                          }`}
+                        >
+                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
+                            <FaRightFromBracket
+                              size={13}
+                              className="text-primary/50 shrink-0"
+                            />
+                          </span>
+                          <AnimatePresence mode="wait">
+                            {!isInDetailView && (
+                              <motion.span
+                                className="flex-1"
+                                initial={{ opacity: 1, width: "auto" }}
+                                exit={{ opacity: 0, width: 0 }}
+                                transition={{
+                                  duration: 0.2,
+                                  ease: [0.215, 0.61, 0.355, 1],
+                                }}
+                              >
+                                Sign out
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                          {accountSubPage === "logout" && !isInDetailView && (
+                            <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                          )}
+                        </Command.Item>
+                      </Command.Group>
+                    </motion.div>
+                    {/* Right side - detail content (always visible, updates based on selection) */}
+                    <div className="flex-1 overflow-y-auto px-4 pb-4">
+                      {accountSubPage === "info" && session?.user && (
+                        <div className="space-y-4">
+                          <div>
+                            <div className="mb-3 flex items-center justify-between">
+                              <h3 className="text-primary/50 text-xs font-medium tracking-wider uppercase">
+                                Account Information
+                              </h3>
+                              {!isEditingAccountInfo && (
+                                <div className="flex items-center gap-2">
+                                  <KbdGroup className="flex items-center gap-0.5">
+                                    <Kbd className="bg-background pointer-events-none rounded-md border-none px-1.5 py-1 text-[10px] select-none">
+                                      Enter
+                                    </Kbd>
+                                  </KbdGroup>
+                                  <span className="text-primary/40 text-xs">
+                                    to edit
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                            <div className="text-primary/50 text-xs truncate">
-                              {session.user.email}
-                            </div>
-                            {session.user.username && (
-                              <div className="text-primary/50 text-xs truncate mt-0.5">
-                                @{session.user.username}
+                            {isEditingAccountInfo ? (
+                              <div className="bg-card space-y-3 rounded-2xl border px-4 py-3">
+                                <div className="space-y-2">
+                                  <label className="text-primary/50 text-xs">
+                                    Name
+                                  </label>
+                                  <input
+                                    ref={nameInputRef}
+                                    type="text"
+                                    value={accountName}
+                                    onChange={(e) =>
+                                      setAccountName(e.target.value)
+                                    }
+                                    onKeyDown={(e) => {
+                                      // Tab: move to username field
+                                      if (e.key === "Tab" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        usernameInputRef.current?.focus();
+                                      }
+                                      // ArrowDown: move to username field
+                                      if (e.key === "ArrowDown") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        usernameInputRef.current?.focus();
+                                      }
+                                      // Enter: save (if not empty)
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (accountName.trim()) {
+                                          updateUserMutation.mutate({
+                                            name: accountName.trim(),
+                                            username:
+                                              accountUsername.trim() || null,
+                                          });
+                                        }
+                                      }
+                                      // Escape: cancel editing
+                                      if (e.key === "Escape") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsEditingAccountInfo(false);
+                                        if (session?.user) {
+                                          setAccountName(
+                                            session.user.name ?? "",
+                                          );
+                                          setAccountUsername(
+                                            session.user.username ?? "",
+                                          );
+                                        }
+                                      }
+                                    }}
+                                    placeholder="Enter your name"
+                                    className="text-primary bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
+                                  />
+                                </div>
+                                <div className="border-border border-t pt-3">
+                                  <div className="text-primary/50 mb-1 text-xs">
+                                    Email
+                                  </div>
+                                  <div className="text-primary truncate text-sm">
+                                    {session.user.email}
+                                  </div>
+                                  <div className="text-primary/40 mt-1 text-xs">
+                                    Email cannot be changed
+                                  </div>
+                                </div>
+                                <div className="border-border border-t pt-3">
+                                  <div className="space-y-2">
+                                    <label className="text-primary/50 text-xs">
+                                      Username
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-primary/50 text-sm">
+                                        @
+                                      </span>
+                                      <input
+                                        ref={usernameInputRef}
+                                        type="text"
+                                        value={accountUsername}
+                                        onChange={(e) => {
+                                          // Remove @ if user types it
+                                          const value = e.target.value.replace(
+                                            /^@+/,
+                                            "",
+                                          );
+                                          setAccountUsername(value);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          // Shift+Tab: move to name field
+                                          if (e.key === "Tab" && e.shiftKey) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            nameInputRef.current?.focus();
+                                          }
+                                          // ArrowUp: move to name field
+                                          if (e.key === "ArrowUp") {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            nameInputRef.current?.focus();
+                                          }
+                                          // Enter: save
+                                          if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            updateUserMutation.mutate({
+                                              name: accountName.trim(),
+                                              username:
+                                                accountUsername.trim() || null,
+                                            });
+                                          }
+                                          // Escape: cancel editing
+                                          if (e.key === "Escape") {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setIsEditingAccountInfo(false);
+                                            if (session?.user) {
+                                              setAccountName(
+                                                session.user.name ?? "",
+                                              );
+                                              setAccountUsername(
+                                                session.user.username ?? "",
+                                              );
+                                            }
+                                          }
+                                        }}
+                                        placeholder="username"
+                                        className="text-primary bg-background border-border focus:ring-primary/50 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="border-border flex items-center justify-end gap-2 border-t pt-3">
+                                  <button
+                                    onClick={() => {
+                                      setIsEditingAccountInfo(false);
+                                      if (session?.user) {
+                                        setAccountName(session.user.name ?? "");
+                                        setAccountUsername(
+                                          session.user.username ?? "",
+                                        );
+                                      }
+                                    }}
+                                    className="text-primary/70 hover:text-primary rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+                                    type="button"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (accountName.trim()) {
+                                        updateUserMutation.mutate({
+                                          name: accountName.trim(),
+                                          username:
+                                            accountUsername.trim() || null,
+                                        });
+                                      }
+                                    }}
+                                    disabled={
+                                      !accountName.trim() ||
+                                      updateUserMutation.isPending
+                                    }
+                                    className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    type="button"
+                                  >
+                                    {updateUserMutation.isPending
+                                      ? "Saving..."
+                                      : "Save"}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="bg-card space-y-3 rounded-2xl border px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <span className="bg-cmdk-kbd-disabled flex items-center justify-center rounded-full p-2">
+                                    <FaUser
+                                      size={16}
+                                      className="text-primary/50 shrink-0"
+                                    />
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-primary/50 mb-1 text-xs">
+                                      Name
+                                    </div>
+                                    <div className="text-primary truncate text-sm font-medium">
+                                      {session.user.name ?? "Not set"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="border-border border-t pt-3">
+                                  <div className="text-primary/50 mb-1 text-xs">
+                                    Email
+                                  </div>
+                                  <div className="text-primary truncate text-sm">
+                                    {session.user.email}
+                                  </div>
+                                </div>
+                                {session.user.username && (
+                                  <div className="border-border border-t pt-3">
+                                    <div className="text-primary/50 mb-1 text-xs">
+                                      Username
+                                    </div>
+                                    <div className="text-primary truncate text-sm">
+                                      @{session.user.username ?? ""}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      {accountSubPage === "logout" && (
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="text-primary/50 mb-3 text-xs font-medium tracking-wider uppercase">
+                              Sign Out
+                            </h3>
+                            <div className="bg-card rounded-2xl border px-4 py-3">
+                              <p className="text-primary/70 mb-8 text-sm">
+                                Are you sure you want to sign out?
+                                <br />
+                                You&apos;ll need to sign in again to access your
+                                account.
+                              </p>
+                              {isInDetailView ? (
+                                <button
+                                  ref={signOutButtonRef}
+                                  onClick={async () => {
+                                    try {
+                                      await signOut();
+                                      toastManager.add({
+                                        title: "Signed out successfully",
+                                        type: "success",
+                                      });
+                                      setOpen(false);
+                                      router.push("/sign-in");
+                                    } catch {
+                                      toastManager.add({
+                                        title: "Failed to sign out",
+                                        type: "error",
+                                      });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    // Handle Enter key on button
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      e.currentTarget.click();
+                                    }
+                                  }}
+                                  className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary focus-visible:outline-primary flex items-center gap-3 rounded-xl px-4 py-2 pr-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+                                  type="button"
+                                >
+                                  <span>Sign Out</span>
 
-                    {/* Logout Action */}
-                    <Command.Item
-                      value="account.logout"
-                      onSelect={async () => {
-                        try {
-                          await signOut();
-                          toastManager.add({
-                            title: "Signed out successfully",
-                            type: "success",
-                          });
-                          setOpen(false);
-                          router.push("/sign-in");
-                        } catch (error) {
-                          toastManager.add({
-                            title: "Failed to sign out",
-                            type: "error",
-                          });
-                        }
-                      }}
-                      className="group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center gap-3 rounded-xl py-1.5 pr-3 pl-2 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
-                    >
-                      <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
-                        <FaRightFromBracket
-                          size={13}
-                          className="text-primary/50 shrink-0"
-                        />
-                      </span>
-                      <span className="flex-1">Sign out</span>
-                    </Command.Item>
-                  </Command.Group>
+                                  <Kbd className="bg-background/20 pointer-events-none rounded-md border-none px-2 py-1 text-[10px] select-none">
+                                    <FaTurnDown
+                                      size={12}
+                                      className="text-primary-foreground/70 -mb-0.5 rotate-90"
+                                    />
+                                  </Kbd>
+                                </button>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <KbdGroup className="flex items-center gap-0.5">
+                                    <Kbd className="bg-background pointer-events-none rounded-md border-none px-1.5 py-1 text-[10px] select-none">
+                                      Enter
+                                    </Kbd>
+                                  </KbdGroup>
+                                  <span className="text-primary/40 text-xs">
+                                    to sign out
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {!accountSubPage && (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="text-primary/30 text-sm">
+                            Select an option to view details
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </>
               )}
 
@@ -949,8 +1678,6 @@ export function CommandPalette({
                           if (!open) {
                             setShowDocumentActions(false);
                             setSelectedDocumentForActions(null);
-                            setSelectedDocumentId(null);
-                            setTriggerPosition(null);
                           }
                         }}
                       >
@@ -967,8 +1694,11 @@ export function CommandPalette({
                                           d.id === selectedDocumentForActions,
                                       )?.title ?? "Untitled"
                                     }"]`,
-                                  ) as HTMLElement | null;
-                                  if (selectedItem && el) {
+                                  );
+                                  if (
+                                    selectedItem instanceof HTMLElement &&
+                                    el
+                                  ) {
                                     const rect =
                                       selectedItem.getBoundingClientRect();
                                     el.style.position = "fixed";
@@ -994,13 +1724,11 @@ export function CommandPalette({
                             doc={
                               documents.find(
                                 (d) => d.id === selectedDocumentForActions,
-                              )!
+                              ) ?? ({} as DocumentWithMetadata)
                             }
                             onClose={() => {
                               setShowDocumentActions(false);
                               setSelectedDocumentForActions(null);
-                              setSelectedDocumentId(null);
-                              setTriggerPosition(null);
                             }}
                             onDelete={() => {
                               const doc = documents.find(
@@ -1008,7 +1736,8 @@ export function CommandPalette({
                               );
                               if (!doc?.isOwner) {
                                 toastManager.add({
-                                  title: "Only document owners can delete documents",
+                                  title:
+                                    "Only document owners can delete documents",
                                   type: "error",
                                 });
                                 return;
@@ -1022,16 +1751,18 @@ export function CommandPalette({
                               }
                             }}
                             onToggleFavorite={() => {
-                              toggleFavoriteMutation.mutate({
-                                documentId: selectedDocumentForActions!,
-                              });
+                              if (selectedDocumentForActions) {
+                                toggleFavoriteMutation.mutate({
+                                  documentId: selectedDocumentForActions,
+                                });
+                              }
                             }}
                             onOpen={() => {
-                              navigateToDocument(selectedDocumentForActions!);
+                              if (selectedDocumentForActions) {
+                                navigateToDocument(selectedDocumentForActions);
+                              }
                               setShowDocumentActions(false);
                               setSelectedDocumentForActions(null);
-                              setSelectedDocumentId(null);
-                              setTriggerPosition(null);
                             }}
                             isDeleting={deleteMutation.isPending}
                             isTogglingFavorite={
@@ -1616,8 +2347,10 @@ export function CommandPalette({
                                     const nextButton =
                                       e.currentTarget.parentElement?.nextElementSibling?.querySelector(
                                         '[aria-label^="Remove"]',
-                                      ) as HTMLButtonElement;
-                                    if (nextButton) {
+                                      );
+                                    if (
+                                      nextButton instanceof HTMLButtonElement
+                                    ) {
                                       nextButton.focus();
                                     } else {
                                       createButtonRef.current?.focus();
@@ -1915,13 +2648,36 @@ export function CommandPalette({
                     </>
                   ) : page == "account" ? (
                     <>
-                      <Kbd className="bg-background pointer-events-none items-center justify-center rounded-md border-none px-2 py-1 select-none">
-                        <FaTurnDown
-                          size={12}
-                          className="text-icon-button -mb-0.5 rotate-90"
-                        />
-                      </Kbd>
-                      to sign out
+                      {isEditingAccountInfo ? (
+                        <>
+                          <Kbd className="bg-background pointer-events-none rounded-md border-none px-2 py-1 text-[10px] select-none">
+                            Esc
+                          </Kbd>
+                          to cancel
+                          <span className="mx-1">•</span>
+                          <Kbd className="bg-background pointer-events-none rounded-md border-none px-2 py-1 text-[10px] select-none">
+                            Enter
+                          </Kbd>
+                          to save
+                        </>
+                      ) : accountSubPage === "info" ? (
+                        <>
+                          <Kbd className="bg-background pointer-events-none rounded-md border-none px-2 py-1 text-[10px] select-none">
+                            Enter
+                          </Kbd>
+                          to edit
+                        </>
+                      ) : (
+                        <>
+                          <Kbd className="bg-background pointer-events-none items-center justify-center rounded-md border-none px-2 py-1 select-none">
+                            <FaTurnDown
+                              size={12}
+                              className="text-icon-button -mb-0.5 rotate-90"
+                            />
+                          </Kbd>
+                          to navigate
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
@@ -1956,7 +2712,7 @@ function DocumentActionsPopover({
   isDeleting,
   isTogglingFavorite,
 }: {
-  doc: any;
+  doc: DocumentWithMetadata;
   onClose: () => void;
   onDelete: () => void;
   onToggleFavorite: () => void;

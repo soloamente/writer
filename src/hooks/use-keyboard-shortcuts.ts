@@ -70,21 +70,29 @@ export function useCommandPaletteState() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+K (Mac) or Ctrl+K (Windows/Linux)
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        // Don't trigger if typing in an input/textarea
+      // Check both e.key (case-insensitive) and e.code for reliability
+      const isCmdK = (e.metaKey || e.ctrlKey) && 
+                     (e.key === "k" || e.key === "K" || e.code === "KeyK");
+      
+      if (isCmdK) {
+        // Don't trigger if typing in an actual input/textarea (not contentEditable editor)
+        // We specifically check for INPUT/TEXTAREA tags and cmdk-input, but NOT contentEditable
+        // because the editor itself is contentEditable and we want Cmd+K to work there
         const target = e.target as HTMLElement;
         const isInput =
           target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
-          (target.closest('[cmdk-input]') !== null) ||
-          target.isContentEditable;
+          (target.closest('[cmdk-input]') !== null);
 
         if (isInput) {
-          return; // Allow default behavior in inputs
+          return; // Allow default behavior in actual form inputs
         }
 
+        // Prevent Chrome's default Cmd+K behavior (address bar search)
+        // Do this immediately to ensure we catch it before Chrome
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         
         // Try to dispatch Lexical command first (if editor is available)
         // Fall back to direct state manipulation for global access
@@ -94,15 +102,60 @@ export function useCommandPaletteState() {
           state.open = !state.open;
         }
         // Note: If command was dispatched, EditorCommandsPlugin will handle state update
+        return;
       }
-      // Escape to close
+      // Escape to close - but only if we're on the main page (not in a nested page)
+      // Since we're in capture phase, we need to check for nested pages ourselves
+      // The CommandPalette component handles Escape for nested pages (goes back)
       if (e.key === "Escape" && state.open) {
+        // Check if we're inside the command palette dialog
+        const target = e.target as HTMLElement;
+        const commandPalette = document.querySelector('[data-testid="command-palette"]');
+        
+        if (commandPalette && commandPalette.contains(target)) {
+          // Check if we're in a nested page by looking for page-specific content
+          // These are definitive indicators that we're in a nested page
+          const hasNestedPageContent = 
+            // Theme page - has theme selection items
+            commandPalette.querySelector('[value="theme.dark"]') !== null ||
+            commandPalette.querySelector('[value="theme.light"]') !== null ||
+            // Account page - has sidebar items or detail view
+            (commandPalette.querySelector('[value="account.logout"]') !== null ||
+             commandPalette.querySelector('[value="account.info"]') !== null ||
+             commandPalette.querySelector('[data-account-sidebar-item]') !== null) ||
+            // Members page - has invite user button
+            commandPalette.querySelector('[value="invite.user"]') !== null ||
+            // Open document page - has document items with data-value attribute
+            (commandPalette.querySelectorAll('[cmdk-item][data-value]').length > 0) ||
+            // Title or create document pages - have focused input fields (not the search input)
+            (target.tagName === "INPUT" && 
+             target.closest('[data-testid="command-palette"]') !== null &&
+             target.getAttribute('placeholder') !== "Type a command or search...");
+          
+          if (hasNestedPageContent) {
+            // We're in a nested page - let CommandPalette handle it (it will navigate back)
+            // Don't prevent default or stop propagation, let it bubble to CommandPalette's handler
+            return;
+          }
+        }
+        
+        // We're on the main page or event is not from command palette - close it
+        e.preventDefault();
+        e.stopPropagation();
         state.open = false;
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    // Attach listeners to both document and window in capture phase
+    // This ensures we catch the event as early as possible before Chrome's handlers
+    // Some browsers handle shortcuts at different levels, so we cover both
+    document.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+    
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
   }, [state]);
 
   return {

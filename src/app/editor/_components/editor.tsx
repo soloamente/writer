@@ -29,6 +29,7 @@ import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { ParagraphNode } from "lexical";
 import { EditorCommandsPlugin } from "./EditorCommandsPlugin";
 import { KeyboardCommandsPlugin } from "./KeyboardCommandsPlugin";
+import { FormattingCommandsPlugin } from "./FormattingCommandsPlugin";
 
 // Plugin to track and manage editable state
 function EditableStatePlugin({
@@ -262,6 +263,7 @@ export function Editor({
           documentId={documentId}
           canWrite={canWrite}
         />
+        <FormattingCommandsPlugin />
         <RichTextPlugin
           contentEditable={
             <ContentEditable
