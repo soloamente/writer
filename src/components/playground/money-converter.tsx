@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { FaArrowRight } from "react-icons/fa6";
+import { AnimateNumber } from "motion-plus/react";
 
 const CURRENCIES = {
   INR: { name: "Indian Rupees", symbol: "₹" },
@@ -191,21 +192,15 @@ export default function MoneyConverter() {
             <span className="text-foreground text-2xl font-medium">
               {CURRENCIES[targetCurrency].symbol}
             </span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              name="target-amount"
-              id="target-amount"
-              value={targetDisplayValue || ""}
-              readOnly
+            <span
               style={{
                 width: `${Math.max(inputWidth2, 20)}px`,
                 minWidth: "20px",
               }}
-              className="text-foreground border-none bg-transparent text-center text-2xl font-medium outline-none"
-              placeholder="0"
-            />
+              className="text-foreground text-center text-2xl font-medium"
+            >
+              <AnimateNumber>{Number(targetDisplayValue) || 0}</AnimateNumber>
+            </span>
           </div>
         </div>
 

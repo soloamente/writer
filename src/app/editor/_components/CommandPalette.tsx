@@ -34,6 +34,7 @@ import {
   FaTrash,
   FaTurnDown,
   FaUser,
+  FaICursor,
 } from "react-icons/fa6";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { toastManager } from "@/components/ui/toast";
@@ -45,15 +46,35 @@ import {
 import { TOGGLE_EDIT_MODE_COMMAND } from "@/lib/lexical/commands";
 import { InviteUserButton } from "@/app/editor/_components/InviteUserButton";
 import { Spinner } from "@/components/ui/spinner";
-import { AnimatePresence, motion } from "motion/react";
+import {
+  AnimatePresence,
+  animate,
+  clamp,
+  mix,
+  motion,
+  progress as calcProgress,
+  useMotionValue,
+  useTransform,
+  type MotionStyle,
+  type SpringOptions,
+} from "motion/react";
 import { isValidEmailFormat, validateEmail } from "@/lib/email-validation";
 import {
   FaChevronDown,
   FaCheck,
   FaXmark,
   FaRightFromBracket,
+  FaCircle,
+  FaMinus,
+  FaWaveSquare,
 } from "react-icons/fa6";
 import { useSession, signOut } from "@/lib/auth-client";
+import {
+  getCursorSettings,
+  saveCursorSettings,
+  getBlinkAnimation,
+  type CursorBlinkStyle,
+} from "@/lib/cursor-settings";
 
 // Type for document returned from api.document.getAll
 type DocumentWithMetadata = {
@@ -71,6 +92,393 @@ type DocumentWithMetadata = {
   isFavorite: boolean;
   role?: "read" | "write";
 };
+
+// Utility function to invert scale
+function invertScale(scale: number): number {
+  return 1 / scale;
+}
+
+// iOS-style horizontal slider component for blink duration
+interface BlinkDurationSliderProps {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  sliderRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+function BlinkDurationSlider({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  sliderRef,
+}: BlinkDurationSliderProps) {
+  const internalRef = useRef<HTMLDivElement>(null);
+  const ref = sliderRef || internalRef;
+  const maxPull = 20;
+  const maxSquish = 0.92;
+  const maxStretch = 1.08;
+  const keyboardStep = 0.05;
+  const keyboardSpring: SpringOptions = { stiffness: 200, damping: 60 };
+
+  /**
+   * This iOS slider doesn't snap to the initial position when a drag starts,
+   * it applies the drag offset to the initial position. So here we track
+   * a couple of values to calculate the drag offset.
+   */
+  const initialDragX = useRef(0);
+  const initialProgressX = useRef(0);
+
+  /**
+   * Store the size of the slider x-axis in a ref instead of state, because we
+   * never use this information in a React render. Updating this shouldn't trigger
+   * a re-render for best animation performance.
+   */
+  const size = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
+
+  /**
+   * The progress of the slider, normalized between 0 and 1. During the gesture
+   * this can exceed 1 or go below 0, and then we animate it back to the closest
+   * edge when the gesture ends.
+   */
+  // Normalize value to 0-1 range
+  const normalizedValue = (value - min) / (max - min);
+  const progress = useMotionValue(normalizedValue);
+
+  /**
+   * The brightness of the slider, which is the progress clamped between 0 and 1.
+   */
+  const brightness = useTransform(() => clamp(0, 1, progress.get()));
+
+  /**
+   * Use useTransform to map the progress to the x-offset of the slider, and
+   * then map that x value to squish/squash scale values.
+   */
+  const x = useTransform(progress, [-1, 0, 1, 2], [-maxPull, 0, 0, maxPull]);
+
+  const scaleX = useTransform(
+    x,
+    [-maxPull, 0, 0, maxPull],
+    [maxStretch, 1, 1, maxStretch],
+  );
+  const scaleY = useTransform(
+    x,
+    [-maxPull, 0, 0, maxPull],
+    [maxSquish, 1, 1, maxSquish],
+  );
+
+  /**
+   * Invert the container scale values to ensure the icon
+   * maintains the correct aspect ratio.
+   */
+  const invertScaleX = useTransform(() => invertScale(scaleX.get()));
+  const invertScaleY = useTransform(() => invertScale(scaleY.get()));
+
+  // Update progress when value prop changes
+  useEffect(() => {
+    const newNormalized = (value - min) / (max - min);
+    if (Math.abs(progress.get() - newNormalized) > 0.01) {
+      progress.set(newNormalized);
+    }
+  }, [value, min, max, progress]);
+
+  // Update parent when progress changes
+  useEffect(() => {
+    const unsubscribe = progress.on("change", (latest) => {
+      const clamped = clamp(0, 1, latest);
+      const newValue = min + clamped * (max - min);
+      // Round to step
+      const rounded = Math.round(newValue / step) * step;
+      onChange(rounded);
+    });
+    return unsubscribe;
+  }, [progress, min, max, step, onChange]);
+
+  const updateProgress = (clientX: number) => {
+    const { left, right } = size.current;
+    progress.set(calcProgress(left, right, clientX));
+  };
+
+  const updateProgressWithKeyboard = (
+    event: React.KeyboardEvent | KeyboardEvent,
+  ) => {
+    // Only support ArrowLeft and ArrowRight for slider control
+    // ArrowUp and ArrowDown are used for navigation between buttons
+    const isIncrease = event.key === "ArrowRight";
+    const isDecrease = event.key === "ArrowLeft";
+
+    if (!isIncrease && !isDecrease) return;
+
+    event.preventDefault(); // Prevent default scrolling behavior
+    event.stopPropagation(); // Prevent event bubbling
+
+    let current = clamp(0, 1, progress.get());
+
+    if (current <= 0.04) current = 0;
+    if (current >= 0.96) current = 1;
+
+    const newProgress = current + (isIncrease ? keyboardStep : -keyboardStep);
+
+    if (newProgress > 1) {
+      animate(progress, 1, {
+        velocity: 20,
+        type: "spring",
+        ...keyboardSpring,
+      });
+    } else if (newProgress < 0) {
+      animate(progress, 0, {
+        velocity: -20,
+        type: "spring",
+        ...keyboardSpring,
+      });
+    } else {
+      progress.jump(clamp(0, 1, newProgress));
+    }
+  };
+
+  const container: React.CSSProperties = {
+    width: "100%",
+    height: 60,
+    overflow: "visible",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    position: "relative",
+    minWidth: 0,
+    gap: "12px",
+  };
+
+  const slider: MotionStyle = {
+    flex: "1 1 0",
+    minWidth: 200,
+    height: 60,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 15,
+    overflow: "hidden",
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    touchAction: "none",
+    outline: "none",
+    border: "1px solid var(--color-border)",
+    cursor: "grab",
+    isolation: "isolate",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    MozUserSelect: "none",
+    msUserSelect: "none",
+    WebkitTouchCallout: "none",
+    zIndex: 1,
+  } as MotionStyle;
+
+  const indicator: MotionStyle = {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "var(--color-primary)",
+    originX: 0,
+    pointerEvents: "none",
+    opacity: 0.2,
+    borderRadius: 15,
+  };
+
+  const labelText: React.CSSProperties = {
+    position: "relative",
+    zIndex: 0,
+    pointerEvents: "none",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    MozUserSelect: "none",
+    msUserSelect: "none",
+    color: "var(--color-primary)",
+    fontSize: "14px",
+    fontWeight: 500,
+    paddingLeft: "16px",
+    display: "flex",
+    alignItems: "center",
+    touchAction: "none",
+    transition: "opacity 0.2s ease",
+    WebkitTouchCallout: "none",
+  } as React.CSSProperties;
+
+  const valueText: React.CSSProperties = {
+    position: "relative",
+    zIndex: 0,
+    pointerEvents: "none",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    MozUserSelect: "none",
+    msUserSelect: "none",
+    color: "var(--color-primary)",
+    fontSize: "14px",
+    fontWeight: 500,
+    paddingRight: "16px",
+    display: "flex",
+    alignItems: "center",
+    touchAction: "none",
+    transition: "opacity 0.2s ease",
+    WebkitTouchCallout: "none",
+  } as React.CSSProperties;
+
+  return (
+    <div style={container}>
+      <motion.div
+        ref={ref}
+        style={{ ...slider, x, scaleX, scaleY }}
+        role="slider"
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-label="Blink Duration"
+        onTapStart={({ clientX }: PointerEvent) => {
+          if (!ref.current) return;
+
+          const { left, right } = ref.current.getBoundingClientRect();
+          size.current = { left, right };
+
+          initialDragX.current = clientX;
+          initialProgressX.current = mix(left, right, progress.get());
+        }}
+        onPan={({ clientX }) => {
+          const dragOffset = clientX - initialDragX.current;
+          const newProgressX = initialProgressX.current + dragOffset;
+          updateProgress(newProgressX);
+        }}
+        onPanEnd={() => {
+          /**
+           * If the slider ended outside of the normal range,
+           * animate it back to the closest edge.
+           */
+          const finalProgress = progress.get();
+          if (finalProgress < 0) {
+            animate(progress, 0);
+          } else if (finalProgress > 1) {
+            animate(progress, 1);
+          }
+        }}
+        /**
+         * Keyboard accessibility
+         */
+        onKeyDown={(e) => {
+          updateProgressWithKeyboard(e);
+        }}
+        onFocus={() => {
+          // Scroll slider into view when focused
+          if (ref.current) {
+            ref.current.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "nearest",
+            });
+          }
+        }}
+        tabIndex={0}
+        transition={{ duration: 0.15 }}
+        initial={{
+          boxShadow: "0px 0px 0px 4px rgba(13, 99, 248, 0)",
+        }}
+        whileFocus={{
+          boxShadow: "0px 0px 0px 4px rgba(13, 99, 248, 0.3)",
+        }}
+      >
+        <motion.div style={{ ...indicator, scaleX: brightness }} />
+        <motion.div
+          style={{
+            scaleX: invertScaleX,
+            scaleY: invertScaleY,
+            pointerEvents: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            MozUserSelect: "none",
+            msUserSelect: "none",
+            WebkitTouchCallout: "none",
+            zIndex: 0,
+          }}
+        >
+          <span style={labelText}>Blink Duration</span>
+        </motion.div>
+        <motion.div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: useTransform(progress, (v) => {
+              // Offset handle to the left by 8px, but ensure minimum distance from left edge
+              const percentage = clamp(0, 1, v);
+
+              // When at the beginning (0%), position handle at fixed 12px from left edge
+              // For other positions, offset by 8px from the indicator position
+              if (percentage <= 0.05) {
+                // Use fixed pixel position when near the start
+                return "12px";
+              }
+
+              // For other positions, calculate percentage minus offset
+              // Estimate: assuming slider width ~300px, 8px ≈ 2.67%
+              // Use 3% offset to ensure handle is visibly offset from indicator
+              const offsetPercent = 2;
+              const calculatedPercent = Math.max(
+                0,
+                percentage * 100 - offsetPercent,
+              );
+
+              // Ensure minimum 12px from left edge using calc with max
+              return `calc(max(12px, ${calculatedPercent}%))`;
+            }),
+            width: "4px",
+            height: "40px",
+            backgroundColor: "var(--color-primary)",
+            borderRadius: "6px",
+            pointerEvents: "none",
+            zIndex: 2,
+            x: "-50%",
+            y: "-50%",
+            opacity: useTransform(progress, (v) => {
+              // Lower opacity when handle is near the edges (where text is)
+              // Fade between 0-0.25 (left edge) and 0.75-1 (right edge)
+              if (v < 0.25) {
+                // Fade from 0.3 to 1 as we move away from left edge
+                return 0.3 + (v / 0.25) * 0.7;
+              }
+              if (v > 0.75) {
+                // Fade from 1 to 0.3 as we approach right edge
+                return 1 - ((v - 0.75) / 0.25) * 0.7;
+              }
+              return 1;
+            }),
+          }}
+        />
+        <motion.div
+          style={{
+            scaleX: invertScaleX,
+            scaleY: invertScaleY,
+            pointerEvents: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            MozUserSelect: "none",
+            msUserSelect: "none",
+            WebkitTouchCallout: "none",
+            position: "absolute",
+            right: 0,
+            top: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            zIndex: 0,
+          }}
+        >
+          <span style={valueText}>{value.toFixed(1)}s</span>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
 
 interface CommandPaletteProps {
   documentId: string;
@@ -126,6 +534,19 @@ export function CommandPalette({
   const [isInCreateDocDetailView, setIsInCreateDocDetailView] = useState(false);
   const createDocPageInitializedRef = useRef(false);
 
+  // State for sidebar navigation in settings page
+  const [settingsSubPage, setSettingsSubPage] = useState<string | null>(null);
+  const [isInSettingsDetailView, setIsInSettingsDetailView] = useState(false);
+  const settingsPageInitializedRef = useRef(false);
+
+  // State for cursor settings
+  const [cursorBlinkStyle, setCursorBlinkStyle] = useState<CursorBlinkStyle>(
+    () => getCursorSettings().blinkStyle,
+  );
+  const [cursorBlinkDuration, setCursorBlinkDuration] = useState<number>(
+    () => getCursorSettings().blinkDuration,
+  );
+
   // State for editing account info
   const [isEditingAccountInfo, setIsEditingAccountInfo] = useState(false);
   const [accountName, setAccountName] = useState("");
@@ -139,6 +560,9 @@ export function CommandPalette({
   const addMemberButtonRef = useRef<HTMLButtonElement>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const firstRoleOptionRef = useRef<HTMLButtonElement>(null);
+  const blinkStyleButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const blinkDurationSliderRef = useRef<HTMLDivElement | null>(null);
+  const settingsDetailScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch documents for navigation
   const { data: documents } = api.document.getAll.useQuery(undefined, {
@@ -458,6 +882,8 @@ export function CommandPalette({
       setIsInMembersDetailView(false);
       setCreateDocSubPage(null);
       setIsInCreateDocDetailView(false);
+      setSettingsSubPage(null);
+      setIsInSettingsDetailView(false);
       // Reset account editing state
       setIsEditingAccountInfo(false);
       setAccountName("");
@@ -466,6 +892,8 @@ export function CommandPalette({
       membersPageInitializedRef.current = false;
       // Reset create document page initialization
       createDocPageInitializedRef.current = false;
+      // Reset settings page initialization
+      settingsPageInitializedRef.current = false;
     }
   }, [open, documentId, canWrite, documentTitle]);
 
@@ -486,6 +914,53 @@ export function CommandPalette({
       return () => clearTimeout(timer);
     }
   }, [isEditingAccountInfo, accountSubPage]);
+
+  // Auto-focus first button when entering blink style detail view
+  useEffect(() => {
+    if (isInSettingsDetailView && settingsSubPage === "cursor.style") {
+      const timer = setTimeout(() => {
+        // Try to focus the first button
+        const firstButton = blinkStyleButtonsRef.current[0];
+        if (firstButton) {
+          firstButton.focus();
+          // Scroll to top when focusing first button
+          // Force scroll to top immediately
+          if (settingsDetailScrollContainerRef.current) {
+            settingsDetailScrollContainerRef.current.scrollTop = 0;
+            requestAnimationFrame(() => {
+              settingsDetailScrollContainerRef.current?.scrollTo({
+                top: 0,
+                behavior: "smooth",
+              });
+            });
+          }
+        } else {
+          // If refs aren't set yet, try querying the DOM
+          const buttons = document.querySelectorAll(
+            "[data-blink-style-buttons] button",
+          ) as NodeListOf<HTMLButtonElement>;
+          if (buttons.length > 0 && buttons[0]) {
+            const firstButton = buttons[0];
+            if (firstButton) {
+              firstButton.focus();
+              // Scroll to top when focusing first button
+              setTimeout(() => {
+                if (settingsDetailScrollContainerRef.current) {
+                  settingsDetailScrollContainerRef.current.scrollTo({
+                    top: 0,
+                    behavior: "smooth",
+                  });
+                }
+              }, 10);
+            }
+            // Also update the ref
+            blinkStyleButtonsRef.current[0] = buttons[0];
+          }
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isInSettingsDetailView, settingsSubPage]);
 
   // Refocus Command component when exiting edit mode to restore keyboard navigation
   const prevIsEditingAccountInfo = useRef(isEditingAccountInfo);
@@ -526,6 +1001,218 @@ export function CommandPalette({
       accountPageInitializedRef.current = false;
     }
   }, [page]);
+
+  // Reset sidebar state when exiting settings page, reset initialization flag
+  useEffect(() => {
+    if (page !== "settings") {
+      setSettingsSubPage(null);
+      setIsInSettingsDetailView(false);
+      settingsPageInitializedRef.current = false;
+    }
+  }, [page]);
+
+  // Add window-level capture listener to intercept arrow keys before cmdk handles them
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDownCapture = (e: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+
+      // Check if slider is focused - if so, let it handle all arrow keys
+      const isSliderFocused =
+        activeElement instanceof HTMLElement &&
+        activeElement.getAttribute("role") === "slider";
+
+      if (
+        isSliderFocused &&
+        (e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight")
+      ) {
+        // Handle navigation from slider to buttons
+        if (
+          (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+          page === "settings" &&
+          isInSettingsDetailView &&
+          settingsSubPage === "cursor.style"
+        ) {
+          // Navigate from slider to buttons
+          if (e.key === "ArrowUp" && blinkStyleButtonsRef.current.length > 0) {
+            // Go to last button
+            const lastButton =
+              blinkStyleButtonsRef.current[
+                blinkStyleButtonsRef.current.length - 1
+              ];
+            if (lastButton) {
+              e.preventDefault();
+              e.stopPropagation();
+              setTimeout(() => {
+                lastButton.focus();
+              }, 0);
+              return;
+            }
+          } else if (
+            e.key === "ArrowDown" &&
+            blinkStyleButtonsRef.current.length > 0
+          ) {
+            // Go to first button
+            const firstButton = blinkStyleButtonsRef.current[0];
+            if (firstButton) {
+              e.preventDefault();
+              e.stopPropagation();
+              // Force scroll to top immediately BEFORE focusing
+              const scrollContainer = settingsDetailScrollContainerRef.current;
+              if (scrollContainer) {
+                // Immediate scroll - set multiple times to ensure it sticks
+                scrollContainer.scrollTop = 0;
+                scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+              }
+              // Also try finding scrollable parent from button
+              const scrollableParent = firstButton.closest(
+                ".overflow-y-auto",
+              ) as HTMLElement;
+              if (scrollableParent) {
+                scrollableParent.scrollTop = 0;
+                scrollableParent.scrollTo({ top: 0, behavior: "auto" });
+              }
+
+              setTimeout(() => {
+                firstButton.focus();
+                // Ensure scroll after focus with multiple attempts
+                if (scrollContainer) {
+                  scrollContainer.scrollTop = 0;
+                }
+                if (scrollableParent) {
+                  scrollableParent.scrollTop = 0;
+                }
+                setTimeout(() => {
+                  if (scrollContainer) {
+                    scrollContainer.scrollTop = 0;
+                    scrollContainer.scrollTo({
+                      top: 0,
+                      behavior: "smooth",
+                    });
+                  }
+                  if (scrollableParent) {
+                    scrollableParent.scrollTop = 0;
+                    scrollableParent.scrollTo({
+                      top: 0,
+                      behavior: "smooth",
+                    });
+                  }
+                }, 50);
+              }, 0);
+              return;
+            }
+          }
+        }
+        // For left/right, let the slider handle it
+        return;
+      }
+
+      // Only handle vertical navigation when in settings detail view with buttons
+      if (
+        (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+        page === "settings" &&
+        isInSettingsDetailView &&
+        settingsSubPage === "cursor.style"
+      ) {
+        const isButtonFocused =
+          activeElement instanceof HTMLButtonElement &&
+          activeElement.closest("[data-blink-style-buttons]");
+
+        if (isButtonFocused) {
+          // Find current button index
+          const currentButton = activeElement as HTMLButtonElement;
+          const currentIndex = blinkStyleButtonsRef.current.findIndex(
+            (btn) => btn === currentButton,
+          );
+
+          if (currentIndex === -1) return;
+
+          let nextIndex = currentIndex;
+
+          if (e.key === "ArrowDown") {
+            // If on last button, navigate to slider
+            if (
+              currentIndex === blinkStyleButtonsRef.current.length - 1 &&
+              blinkDurationSliderRef.current
+            ) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              setTimeout(() => {
+                blinkDurationSliderRef.current?.focus();
+                // Scroll slider into view
+                blinkDurationSliderRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                  inline: "nearest",
+                });
+              }, 0);
+              return;
+            }
+            nextIndex =
+              currentIndex < blinkStyleButtonsRef.current.length - 1
+                ? currentIndex + 1
+                : 0;
+          } else if (e.key === "ArrowUp") {
+            // If on first button, navigate to slider (wrap around)
+            if (currentIndex === 0 && blinkDurationSliderRef.current) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              setTimeout(() => {
+                blinkDurationSliderRef.current?.focus();
+                // Scroll slider into view
+                blinkDurationSliderRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                  inline: "nearest",
+                });
+              }, 0);
+              return;
+            }
+            nextIndex =
+              currentIndex > 0
+                ? currentIndex - 1
+                : blinkStyleButtonsRef.current.length - 1;
+          }
+
+          // Focus the next button
+          const nextButton = blinkStyleButtonsRef.current[nextIndex];
+          if (nextButton) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            setTimeout(() => {
+              nextButton.focus();
+              // Scroll to top if focusing first button
+              if (nextIndex === 0) {
+                // Force scroll to top immediately
+                if (settingsDetailScrollContainerRef.current) {
+                  settingsDetailScrollContainerRef.current.scrollTop = 0;
+                  requestAnimationFrame(() => {
+                    settingsDetailScrollContainerRef.current?.scrollTo({
+                      top: 0,
+                      behavior: "smooth",
+                    });
+                  });
+                }
+              }
+            }, 0);
+          }
+        }
+      }
+    };
+
+    // Use capture phase to intercept before cmdk
+    window.addEventListener("keydown", handleKeyDownCapture, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDownCapture, true);
+    };
+  }, [open, page, isInSettingsDetailView, settingsSubPage]);
 
   // Reset sidebar state when exiting members page, reset initialization flag
   useEffect(() => {
@@ -643,6 +1330,14 @@ export function CommandPalette({
             createDocPageInitializedRef.current = true;
           }
           break;
+        case "settings":
+          // Default to first sidebar item (Blink Style)
+          if (!settingsPageInitializedRef.current) {
+            setSelectedValue("settings.cursor.style");
+            setSettingsSubPage("cursor.style");
+            settingsPageInitializedRef.current = true;
+          }
+          break;
         default:
           setSelectedValue(undefined);
       }
@@ -687,7 +1382,97 @@ export function CommandPalette({
         <Command
           className="overflow-hidden"
           value={selectedValue}
+          shouldFilter={false}
+          onKeyDownCapture={(e) => {
+            // CRITICAL: Intercept arrow keys in capture phase BEFORE cmdk processes them
+            // Handle vertical navigation (up/down) for settings detail view
+            if (
+              (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+              page === "settings" &&
+              isInSettingsDetailView
+            ) {
+              const activeElement = document.activeElement;
+              const isButtonFocused =
+                activeElement instanceof HTMLButtonElement &&
+                activeElement.closest("[data-blink-style-buttons]");
+
+              if (isButtonFocused) {
+                // Prevent cmdk from handling this arrow key
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Handle navigation directly here
+                const currentButton = activeElement as HTMLButtonElement;
+                const currentIndex = blinkStyleButtonsRef.current.findIndex(
+                  (btn) => btn === currentButton,
+                );
+
+                if (currentIndex === -1) return;
+
+                let nextIndex = currentIndex;
+
+                if (e.key === "ArrowDown") {
+                  nextIndex =
+                    currentIndex < blinkStyleButtonsRef.current.length - 1
+                      ? currentIndex + 1
+                      : 0;
+                } else if (e.key === "ArrowUp") {
+                  nextIndex =
+                    currentIndex > 0
+                      ? currentIndex - 1
+                      : blinkStyleButtonsRef.current.length - 1;
+                }
+
+                // Focus the next button
+                const nextButton = blinkStyleButtonsRef.current[nextIndex];
+                if (nextButton) {
+                  // Use setTimeout to ensure focus happens after event processing
+                  setTimeout(() => {
+                    nextButton.focus();
+                    // Scroll to top if focusing first button
+                    if (nextIndex === 0) {
+                      requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                          // Use scrollIntoView to scroll button to top
+                          nextButton.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                            inline: "nearest",
+                          });
+                          // Also try scrolling the container directly
+                          if (settingsDetailScrollContainerRef.current) {
+                            settingsDetailScrollContainerRef.current.scrollTo({
+                              top: 0,
+                              behavior: "smooth",
+                            });
+                          }
+                        });
+                      });
+                    }
+                  }, 0);
+                }
+              }
+            }
+          }}
           onValueChange={(value) => {
+            // CRITICAL: Prevent cmdk from changing selection when in settings detail view with buttons focused
+            // This prevents arrow keys from navigating the sidebar when we want to navigate buttons
+            if (
+              page === "settings" &&
+              isInSettingsDetailView &&
+              settingsSubPage === "cursor.style"
+            ) {
+              const activeElement = document.activeElement;
+              const isButtonFocused =
+                activeElement instanceof HTMLButtonElement &&
+                activeElement.closest("[data-blink-style-buttons]");
+
+              // If a button is focused, ignore cmdk's value changes (don't update selection)
+              if (isButtonFocused) {
+                return; // Don't update selectedValue, keep it on the current sidebar item
+              }
+            }
+
             setSelectedValue(value);
             // Update the ref when value changes
             if (documents && value) {
@@ -730,6 +1515,14 @@ export function CommandPalette({
               }
             }
 
+            // Auto-update settings sidebar detail view when navigating with arrow keys
+            // But only if we're NOT in detail view (when in detail view, arrow keys navigate content)
+            if (page === "settings" && value && !isInSettingsDetailView) {
+              if (value === "settings.cursor.style") {
+                setSettingsSubPage("cursor.style");
+              }
+            }
+
             // Auto-update create document sidebar detail view when navigating with arrow keys
             // Note: isInCreateDocDetailView is only set when Enter is pressed, not on navigation
             if (page === "createDocument" && value) {
@@ -744,11 +1537,38 @@ export function CommandPalette({
           }}
           onKeyDown={(e) => {
             const target = e.target as HTMLElement | null;
+            const activeElement = document.activeElement;
             const isTypingInField =
               !!target &&
               (target.tagName === "INPUT" ||
                 target.tagName === "TEXTAREA" ||
                 (target instanceof HTMLElement && target.isContentEditable));
+
+            // CRITICAL: Prevent cmdk from handling arrow keys when in settings detail view with buttons focused
+            // This must be checked FIRST before any other handlers
+            // Similar to how inputs in account page prevent sidebar navigation
+            if (
+              (e.key === "ArrowUp" ||
+                e.key === "ArrowDown" ||
+                e.key === "ArrowLeft" ||
+                e.key === "ArrowRight") &&
+              page === "settings" &&
+              isInSettingsDetailView
+            ) {
+              // Check if a button in the blink style section is focused
+              const isButtonFocused =
+                activeElement instanceof HTMLButtonElement &&
+                activeElement.closest("[data-blink-style-buttons]");
+
+              if (isButtonFocused) {
+                // Prevent cmdk from handling this - let the button handle it
+                // This is the same pattern as inputs in account page
+                e.preventDefault();
+                e.stopPropagation();
+                // Return early to prevent cmdk from processing the arrow key
+                return;
+              }
+            }
 
             // Ctrl+B or Cmd+B: show document actions popover
             if (
@@ -832,6 +1652,59 @@ export function CommandPalette({
             // 3. Exit detail view (return to sidebar view)
             // 4. Exit nested page (return to main page)
             if (e.key === "Escape") {
+              // Scroll to top when Escape is pressed
+              const scrollContainer = settingsDetailScrollContainerRef.current;
+
+              // Find all scrollable containers
+              const scrollableContainers: HTMLElement[] = [];
+              if (scrollContainer) {
+                scrollableContainers.push(scrollContainer);
+              }
+
+              // Also find scrollable parents
+              const activeElement = document.activeElement;
+              if (activeElement instanceof HTMLElement) {
+                let element: HTMLElement | null = activeElement;
+                while (element && element !== document.body) {
+                  const style = window.getComputedStyle(element);
+                  if (
+                    (style.overflowY === "auto" ||
+                      style.overflowY === "scroll") &&
+                    !scrollableContainers.includes(element)
+                  ) {
+                    scrollableContainers.push(element);
+                  }
+                  element = element.parentElement;
+                }
+              }
+
+              // Scroll function
+              const scrollToTop = () => {
+                scrollableContainers.forEach((container) => {
+                  container.scrollTop = 0;
+                  container.scrollTo({ top: 0, behavior: "auto" });
+                });
+              };
+
+              // Immediate scroll
+              scrollToTop();
+
+              // Multiple delayed attempts to ensure it sticks
+              requestAnimationFrame(() => {
+                scrollToTop();
+                requestAnimationFrame(() => {
+                  scrollToTop();
+                  scrollableContainers.forEach((container) => {
+                    container.scrollTo({ top: 0, behavior: "smooth" });
+                  });
+                });
+              });
+
+              setTimeout(scrollToTop, 0);
+              setTimeout(scrollToTop, 50);
+              setTimeout(scrollToTop, 100);
+              setTimeout(scrollToTop, 200);
+
               if (showDocumentActions) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -940,6 +1813,47 @@ export function CommandPalette({
                         selectedItem.focus();
                       } else {
                         // Fallback: focus Command.Input to restore keyboard navigation context
+                        const commandInput =
+                          document.querySelector("[cmdk-input]");
+                        if (commandInput instanceof HTMLInputElement) {
+                          commandInput.focus();
+                        }
+                      }
+                    }, 10);
+                  }, 0);
+                }
+                return;
+              }
+              // If in settings detail view, exit detail view to return to sidebar
+              if (
+                isInSettingsDetailView &&
+                page === "settings" &&
+                settingsSubPage !== null
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsInSettingsDetailView(false);
+                // Ensure the correct sidebar item is selected after exiting detail view
+                const selectedItemValue =
+                  settingsSubPage === "cursor.style"
+                    ? "settings.cursor.style"
+                    : null;
+                if (selectedItemValue) {
+                  setSelectedValue(selectedItemValue);
+                  setTimeout(() => {
+                    if (
+                      document.activeElement instanceof HTMLButtonElement ||
+                      document.activeElement instanceof HTMLInputElement
+                    ) {
+                      document.activeElement.blur();
+                    }
+                    setTimeout(() => {
+                      const selectedItem = document.querySelector(
+                        `[cmdk-item][value="${selectedItemValue}"]`,
+                      );
+                      if (selectedItem instanceof HTMLElement) {
+                        selectedItem.focus();
+                      } else {
                         const commandInput =
                           document.querySelector("[cmdk-input]");
                         if (commandInput instanceof HTMLInputElement) {
@@ -1218,6 +2132,116 @@ export function CommandPalette({
               }
             }
 
+            // Enter: execute action for settings sidebar items
+            if (e.key === "Enter" && !isTypingInField && page === "settings") {
+              const target = e.target as HTMLElement | null;
+              const activeElement = document.activeElement;
+
+              // If focus is on a button, let it handle Enter naturally
+              if (
+                target?.tagName === "BUTTON" ||
+                activeElement?.tagName === "BUTTON"
+              ) {
+                return;
+              }
+
+              // If in detail view and focus is not on a sidebar item, don't intercept
+              if (isInSettingsDetailView) {
+                const isFocusOnSidebarItem = activeElement?.closest(
+                  "[data-settings-sidebar-item]",
+                );
+                if (!isFocusOnSidebarItem) {
+                  return;
+                }
+              }
+
+              // Check sidebar item selection
+              const selectedItem = document.querySelector(
+                '[cmdk-item][aria-selected="true"][data-settings-sidebar-item]',
+              );
+
+              if (selectedItem instanceof HTMLElement) {
+                const subPage = selectedItem.getAttribute(
+                  "data-settings-sidebar-item",
+                );
+
+                if (subPage === "cursor.style") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (settingsSubPage !== subPage) {
+                    setSettingsSubPage(subPage);
+                  }
+                  setIsInSettingsDetailView(true);
+                  // Focus first button when entering blink style detail view
+                  if (subPage === "cursor.style") {
+                    setTimeout(() => {
+                      const firstButton = blinkStyleButtonsRef.current[0];
+                      if (firstButton) {
+                        firstButton.focus();
+                        // Scroll to top when focusing first button
+                        const scrollableParent = firstButton.closest(
+                          ".overflow-y-auto",
+                        ) as HTMLElement;
+                        if (scrollableParent) {
+                          scrollableParent.scrollTo({
+                            top: 0,
+                            behavior: "smooth",
+                          });
+                        }
+                      }
+                    }, 0);
+                  }
+                  return;
+                }
+              }
+
+              // Fallback: if already on a settings page but not in detail view, enter detail view
+              if (
+                settingsSubPage === "cursor.style" &&
+                !isInSettingsDetailView
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsInSettingsDetailView(true);
+                // Focus first button when entering blink style detail view
+                if (settingsSubPage === "cursor.style") {
+                  setTimeout(() => {
+                    blinkStyleButtonsRef.current[0]?.focus();
+                  }, 0);
+                }
+                return;
+              }
+            }
+
+            // Prevent cmdk from handling arrow keys when in settings detail view with buttons focused
+            // Arrow key navigation is now handled directly on the buttons themselves
+            if (
+              (e.key === "ArrowUp" ||
+                e.key === "ArrowDown" ||
+                e.key === "ArrowLeft" ||
+                e.key === "ArrowRight") &&
+              page === "settings" &&
+              isInSettingsDetailView &&
+              !isTypingInField
+            ) {
+              const activeElement = document.activeElement;
+
+              // If in blink style detail view and a button is focused, prevent cmdk from handling
+              if (settingsSubPage === "cursor.style") {
+                const isButtonFocused =
+                  activeElement instanceof HTMLButtonElement &&
+                  activeElement.closest("[data-blink-style-buttons]");
+
+                if (isButtonFocused) {
+                  // Let the button's own handler deal with it
+                  // We just prevent cmdk from interfering
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return;
+                }
+              }
+            }
+
             // Backspace: go back when search is empty, but NOT while typing in a field
             if (e.key === "Backspace" && !search && !isTypingInField) {
               e.preventDefault();
@@ -1267,7 +2291,9 @@ export function CommandPalette({
                           ? "Theme"
                           : page === "account"
                             ? "Account"
-                            : "Actions"
+                            : page === "settings"
+                              ? "Settings"
+                              : "Actions"
               }
               className="**:[[cmdk-group-heading]]:text-primary/50 **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-left **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:uppercase"
             >
@@ -1405,6 +2431,29 @@ export function CommandPalette({
                       />
                     </span>
                     <span className="flex-1">Account…</span>
+                    <Kbd className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 pointer-events-none flex items-center justify-center rounded-md border-none px-1.5 py-1 font-normal select-none">
+                      <FaArrowRight
+                        size={12}
+                        className="text-icon-button group-aria-selected:text-primary"
+                      />
+                    </Kbd>
+                  </Command.Item>
+
+                  <Command.Item
+                    value="settings"
+                    onSelect={() => {
+                      setPages((prev) => [...prev, "settings"]);
+                      setSearch("");
+                    }}
+                    className="group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
+                  >
+                    <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex items-center justify-center rounded-md p-2">
+                      <FaGear
+                        size={13}
+                        className="text-icon-button group-aria-selected:text-primary shrink-0"
+                      />
+                    </span>
+                    <span className="flex-1">Settings…</span>
                     <Kbd className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 pointer-events-none flex items-center justify-center rounded-md border-none px-1.5 py-1 font-normal select-none">
                       <FaArrowRight
                         size={12}
@@ -1895,6 +2944,513 @@ export function CommandPalette({
                         </div>
                       )}
                       {!accountSubPage && (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="text-primary/30 text-sm">
+                            Select an option to view details
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {page === "settings" && (
+                <>
+                  {/* Always show sidebar + detail view layout */}
+                  <div className="flex h-full">
+                    {/* Left sidebar - animated width */}
+                    <motion.div
+                      className="border-border overflow-hidden border-r px-2 pr-2.5"
+                      animate={{
+                        width: isInSettingsDetailView ? 64 : 192,
+                      }}
+                      transition={{
+                        duration: 0.25,
+                        ease: [0.215, 0.61, 0.355, 1], // ease-out-cubic
+                      }}
+                    >
+                      <Command.Group className="mb-0">
+                        <Command.Item
+                          value="settings.cursor.style"
+                          data-settings-sidebar-item="cursor.style"
+                          onSelect={() => {
+                            if (
+                              settingsSubPage === "cursor.style" &&
+                              !isInSettingsDetailView
+                            ) {
+                              setIsInSettingsDetailView(true);
+                              // Focus first button when entering blink style detail view
+                              setTimeout(() => {
+                                blinkStyleButtonsRef.current[0]?.focus();
+                              }, 0);
+                            } else if (settingsSubPage !== "cursor.style") {
+                              setSettingsSubPage("cursor.style");
+                            }
+                          }}
+                          className={`group text-primary/50 aria-selected:bg-accent aria-selected:text-primary relative flex cursor-pointer items-center justify-start rounded-xl py-1.5 text-sm ease-out outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 ${
+                            isInSettingsDetailView
+                              ? "gap-0 pr-2 pl-2"
+                              : "gap-3 pr-2 pl-2"
+                          } ${settingsSubPage === "cursor.style" ? "bg-accent/50" : ""}`}
+                        >
+                          <span className="bg-cmdk-kbd-disabled group-aria-selected:bg-accent-foreground/20 flex shrink-0 items-center justify-center rounded-md p-2">
+                            <FaICursor
+                              size={13}
+                              className="text-primary/50 shrink-0"
+                            />
+                          </span>
+                          <AnimatePresence mode="wait">
+                            {!isInSettingsDetailView && (
+                              <motion.span
+                                className="flex-1 overflow-hidden whitespace-nowrap"
+                                initial={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  maxWidth: "100%",
+                                }}
+                                exit={{ opacity: 0, width: 0, maxWidth: 0 }}
+                                transition={{
+                                  duration: 0.15,
+                                  ease: [0.215, 0.61, 0.355, 1],
+                                  opacity: { duration: 0.1 },
+                                }}
+                              >
+                                Blink Style
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                          {settingsSubPage === "cursor.style" &&
+                            !isInSettingsDetailView && (
+                              <div className="text-primary size-2 shrink-0 rounded-full bg-current" />
+                            )}
+                        </Command.Item>
+                      </Command.Group>
+                    </motion.div>
+                    {/* Right side - detail content */}
+                    <div
+                      ref={settingsDetailScrollContainerRef}
+                      className="flex-1 overflow-y-auto px-4 pb-4"
+                    >
+                      {settingsSubPage === "cursor.style" && (
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="text-primary/50 mb-3 text-xs font-medium tracking-wider uppercase">
+                              Blink Style
+                            </h3>
+                            <div
+                              className="space-y-2"
+                              data-blink-style-buttons
+                              onKeyDownCapture={(e) => {
+                                // Capture arrow keys in capture phase BEFORE cmdk can handle them
+                                // Handle vertical navigation (up/down) for the vertical list
+                                if (
+                                  (e.key === "ArrowUp" ||
+                                    e.key === "ArrowDown") &&
+                                  e.target instanceof HTMLButtonElement &&
+                                  e.target.closest("[data-blink-style-buttons]")
+                                ) {
+                                  // Prevent cmdk from handling this
+                                  e.preventDefault();
+                                  e.stopPropagation();
+
+                                  // Handle navigation here in capture phase
+                                  const currentButton =
+                                    e.target as HTMLButtonElement;
+                                  const currentIndex =
+                                    blinkStyleButtonsRef.current.findIndex(
+                                      (btn) => btn === currentButton,
+                                    );
+
+                                  if (currentIndex === -1) return;
+
+                                  let nextIndex = currentIndex;
+
+                                  if (e.key === "ArrowDown") {
+                                    // If on last button, navigate to slider
+                                    if (
+                                      currentIndex ===
+                                        blinkStyleButtonsRef.current.length -
+                                          1 &&
+                                      blinkDurationSliderRef.current
+                                    ) {
+                                      setTimeout(() => {
+                                        blinkDurationSliderRef.current?.focus();
+                                      }, 0);
+                                      return;
+                                    }
+                                    nextIndex =
+                                      currentIndex <
+                                      blinkStyleButtonsRef.current.length - 1
+                                        ? currentIndex + 1
+                                        : 0;
+                                  } else if (e.key === "ArrowUp") {
+                                    // If on first button, navigate to slider (wrap around)
+                                    if (
+                                      currentIndex === 0 &&
+                                      blinkDurationSliderRef.current
+                                    ) {
+                                      setTimeout(() => {
+                                        blinkDurationSliderRef.current?.focus();
+                                      }, 0);
+                                      return;
+                                    }
+                                    nextIndex =
+                                      currentIndex > 0
+                                        ? currentIndex - 1
+                                        : blinkStyleButtonsRef.current.length -
+                                          1;
+                                  }
+
+                                  // Focus the next button
+                                  const nextButton =
+                                    blinkStyleButtonsRef.current[nextIndex];
+                                  if (nextButton) {
+                                    // Use setTimeout to ensure focus happens after event processing
+                                    setTimeout(() => {
+                                      nextButton.focus();
+                                      // Scroll to top if focusing first button
+                                      if (nextIndex === 0) {
+                                        // Force scroll to top immediately
+                                        if (
+                                          settingsDetailScrollContainerRef.current
+                                        ) {
+                                          settingsDetailScrollContainerRef.current.scrollTop = 0;
+                                          requestAnimationFrame(() => {
+                                            settingsDetailScrollContainerRef.current?.scrollTo(
+                                              {
+                                                top: 0,
+                                                behavior: "smooth",
+                                              },
+                                            );
+                                          });
+                                        }
+                                      }
+                                    }, 0);
+                                  }
+                                }
+                              }}
+                            >
+                              {[
+                                {
+                                  value: "solid" as CursorBlinkStyle,
+                                  label: "Always Visible",
+                                  description:
+                                    "Cursor remains visible at all times. Best for accessibility and focus tracking.",
+                                  icon: FaMinus,
+                                },
+                                {
+                                  value: "blink" as CursorBlinkStyle,
+                                  label: "Classic Blink",
+                                  description:
+                                    "Traditional on/off blinking pattern. Sharp transitions for clear visibility.",
+                                  icon: FaCircle,
+                                },
+                                {
+                                  value: "smooth" as CursorBlinkStyle,
+                                  label: "Smooth Fade",
+                                  description:
+                                    "Elegant fade in and out with natural timing. Recommended for comfortable writing.",
+                                  icon: FaWaveSquare,
+                                },
+                                {
+                                  value: "pulse" as CursorBlinkStyle,
+                                  label: "Gentle Pulse",
+                                  description:
+                                    "Subtle breathing effect that never fully disappears. Softer on the eyes during long sessions.",
+                                  icon: FaCircle,
+                                },
+                              ].map((styleOption, index) => {
+                                const isSelected =
+                                  cursorBlinkStyle === styleOption.value;
+                                const blinkConfig = getBlinkAnimation(
+                                  styleOption.value,
+                                  cursorBlinkDuration, // Use current duration for all previews
+                                );
+                                return (
+                                  <button
+                                    key={styleOption.value}
+                                    ref={(el) => {
+                                      blinkStyleButtonsRef.current[index] = el;
+                                    }}
+                                    onFocus={(e) => {
+                                      // Scroll to top when first button is focused
+                                      if (index === 0) {
+                                        const button = e.currentTarget;
+                                        const scrollContainer =
+                                          settingsDetailScrollContainerRef.current;
+
+                                        // Find all scrollable parents
+                                        let element: HTMLElement | null =
+                                          button;
+                                        const scrollableContainers: HTMLElement[] =
+                                          [];
+
+                                        if (scrollContainer) {
+                                          scrollableContainers.push(
+                                            scrollContainer,
+                                          );
+                                        }
+
+                                        while (
+                                          element &&
+                                          element !== document.body
+                                        ) {
+                                          const style =
+                                            window.getComputedStyle(element);
+                                          if (
+                                            (style.overflowY === "auto" ||
+                                              style.overflowY === "scroll") &&
+                                            !scrollableContainers.includes(
+                                              element,
+                                            )
+                                          ) {
+                                            scrollableContainers.push(element);
+                                          }
+                                          element = element.parentElement;
+                                        }
+
+                                        // Scroll all scrollable containers to top
+                                        const scrollToTop = () => {
+                                          scrollableContainers.forEach(
+                                            (container) => {
+                                              container.scrollTop = 0;
+                                              container.scrollTo({
+                                                top: 0,
+                                                behavior: "auto",
+                                              });
+                                            },
+                                          );
+                                        };
+
+                                        // Use requestAnimationFrame to ensure it happens after browser's default scrollIntoView
+                                        requestAnimationFrame(() => {
+                                          scrollToTop();
+                                          requestAnimationFrame(() => {
+                                            scrollToTop();
+                                            scrollableContainers.forEach(
+                                              (container) => {
+                                                container.scrollTo({
+                                                  top: 0,
+                                                  behavior: "smooth",
+                                                });
+                                              },
+                                            );
+                                          });
+                                        });
+
+                                        // Multiple delayed attempts to ensure it sticks
+                                        setTimeout(scrollToTop, 0);
+                                        setTimeout(scrollToTop, 50);
+                                        setTimeout(scrollToTop, 100);
+                                        setTimeout(scrollToTop, 200);
+                                      }
+                                    }}
+                                    onClick={() => {
+                                      setCursorBlinkStyle(styleOption.value);
+                                      saveCursorSettings({
+                                        blinkStyle: styleOption.value,
+                                      });
+                                      toastManager.add({
+                                        title: "Cursor style updated",
+                                        type: "success",
+                                      });
+                                    }}
+                                    onKeyDown={(e) => {
+                                      // Handle Enter to select
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setCursorBlinkStyle(styleOption.value);
+                                        saveCursorSettings({
+                                          blinkStyle: styleOption.value,
+                                        });
+                                        toastManager.add({
+                                          title: "Cursor style updated",
+                                          type: "success",
+                                        });
+                                        return;
+                                      }
+
+                                      // Handle arrow keys for navigation between buttons
+                                      if (
+                                        e.key === "ArrowUp" ||
+                                        e.key === "ArrowDown"
+                                      ) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Also stop on native event to prevent cmdk from handling
+                                        if (e.nativeEvent) {
+                                          const nativeEvent =
+                                            e.nativeEvent as KeyboardEvent;
+                                          if (nativeEvent) {
+                                            nativeEvent.stopImmediatePropagation();
+                                          }
+                                        }
+
+                                        // Find current button index
+                                        const currentIndex =
+                                          blinkStyleButtonsRef.current.findIndex(
+                                            (btn) => btn === e.currentTarget,
+                                          );
+
+                                        if (currentIndex === -1) return;
+
+                                        let nextIndex = currentIndex;
+
+                                        if (e.key === "ArrowDown") {
+                                          nextIndex =
+                                            currentIndex <
+                                            blinkStyleButtonsRef.current
+                                              .length -
+                                              1
+                                              ? currentIndex + 1
+                                              : 0;
+                                        } else if (e.key === "ArrowUp") {
+                                          nextIndex =
+                                            currentIndex > 0
+                                              ? currentIndex - 1
+                                              : blinkStyleButtonsRef.current
+                                                  .length - 1;
+                                        }
+
+                                        // Focus the next button
+                                        const nextButton =
+                                          blinkStyleButtonsRef.current[
+                                            nextIndex
+                                          ];
+                                        if (nextButton) {
+                                          nextButton.focus();
+                                          // Scroll to top if focusing first button
+                                          if (nextIndex === 0) {
+                                            // Force scroll to top immediately
+                                            if (
+                                              settingsDetailScrollContainerRef.current
+                                            ) {
+                                              settingsDetailScrollContainerRef.current.scrollTop = 0;
+                                              requestAnimationFrame(() => {
+                                                settingsDetailScrollContainerRef.current?.scrollTo(
+                                                  {
+                                                    top: 0,
+                                                    behavior: "smooth",
+                                                  },
+                                                );
+                                              });
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }}
+                                    className={`group border-border hover:bg-accent/50 focus-visible:ring-primary focus-visible:outline-primary w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                                      isSelected
+                                        ? "bg-accent border-primary/50"
+                                        : "bg-card"
+                                    }`}
+                                    type="button"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span
+                                        className={`bg-cmdk-kbd-disabled group-hover:bg-accent-foreground/20 flex h-8 w-8 shrink-0 items-center justify-center rounded-md pr-0.5 ${
+                                          isSelected
+                                            ? "bg-accent-foreground/20"
+                                            : ""
+                                        }`}
+                                      >
+                                        <motion.div
+                                          key={`${styleOption.value}-${cursorBlinkDuration}`}
+                                          style={{
+                                            width: 3,
+                                            height: 16,
+                                            backgroundColor: "#0d63f8",
+                                            borderRadius: 6,
+                                            willChange: "opacity",
+                                          }}
+                                          animate={{
+                                            opacity:
+                                              styleOption.value === "solid"
+                                                ? 1
+                                                : blinkConfig.opacity,
+                                          }}
+                                          transition={{
+                                            opacity:
+                                              styleOption.value === "solid"
+                                                ? {}
+                                                : {
+                                                    duration:
+                                                      cursorBlinkDuration, // Use current duration for all previews
+                                                    repeat: Infinity,
+                                                    ease: blinkConfig.ease as [
+                                                      number,
+                                                      number,
+                                                      number,
+                                                      number,
+                                                    ],
+                                                    times: blinkConfig.times,
+                                                    repeatDelay: 0,
+                                                  },
+                                          }}
+                                        />
+                                      </span>
+                                      <div className="min-w-0 flex-1">
+                                        <div
+                                          className={`mb-1 font-medium ${
+                                            isSelected
+                                              ? "text-primary"
+                                              : "text-primary/70"
+                                          }`}
+                                        >
+                                          {styleOption.label}
+                                        </div>
+                                        <div className="text-primary/50 text-xs">
+                                          {styleOption.description}
+                                        </div>
+                                      </div>
+                                      <AnimatePresence mode="wait">
+                                        {isSelected && (
+                                          <motion.div
+                                            initial={{ opacity: 0, scale: 0 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0 }}
+                                            transition={{
+                                              duration: 0.2,
+                                              ease: [0.25, 0.46, 0.45, 0.94], // ease-out-quad
+                                            }}
+                                            className="shrink-0 self-center"
+                                          >
+                                            <FaCheck
+                                              size={16}
+                                              className="text-primary"
+                                            />
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          {/* Blink Duration Slider */}
+                          <div className="mt-6 w-full">
+                            <div className="w-full">
+                              <BlinkDurationSlider
+                                value={cursorBlinkDuration}
+                                min={0.5}
+                                max={3}
+                                step={0.1}
+                                onChange={(value) => {
+                                  setCursorBlinkDuration(value);
+                                  saveCursorSettings({
+                                    blinkDuration: value,
+                                  });
+                                }}
+                                sliderRef={blinkDurationSliderRef}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {!settingsSubPage && (
                         <div className="flex h-full items-center justify-center">
                           <div className="text-primary/30 text-sm">
                             Select an option to view details

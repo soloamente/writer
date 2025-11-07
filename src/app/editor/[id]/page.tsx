@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { Room } from "@/app/editor/Room";
 import { Editor } from "@/app/editor/_components/editor";
 import { CommandPalette } from "@/app/editor/_components/CommandPalette";
+import { DocumentLoadingLoader } from "@/app/editor/_components/DocumentLoader";
 
 async function EditorContent({ documentId }: { documentId: string }) {
   const { auth } = await import("@/lib/auth");
@@ -82,21 +83,8 @@ export default function EditorByIdPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense fallback={<EditorSkeleton />}>
+    <Suspense fallback={<DocumentLoadingLoader />}>
       <DocumentIdLoader params={params} />
     </Suspense>
-  );
-}
-
-function EditorSkeleton() {
-  return (
-    <div className="flex h-screen flex-col">
-      <div className="flex-1 p-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="bg-base-300 mb-4 h-8 w-48 animate-pulse rounded" />
-          <div className="bg-base-200 h-96 w-full animate-pulse rounded" />
-        </div>
-      </div>
-    </div>
   );
 }

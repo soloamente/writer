@@ -21,6 +21,12 @@
   --font-sans:
     var(--font-inter), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    var(--font-ia-writer-mono-v), ui-monospace, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  --font-mono-italic:
+    var(--font-ia-writer-mono-v), ui-monospace, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 @theme inline {
@@ -200,7 +206,7 @@
     @apply bg-background text-foreground;
   }
 
-  /* Rounded caret for all text inputs */
+  /* Hide default caret - we use custom TextCaret component instead */
   input[type="text"],
   input[type="email"],
   input[type="password"],
@@ -211,6 +217,7 @@
   [contenteditable],
   [cmdk-input] {
     caret-shape: round;
+    caret-color: transparent;
   }
 
   /* Hide spinner buttons on number inputs */
@@ -371,7 +378,7 @@
 /* Editor container */
 
 .lexical-content-editable {
-  cursor: text;
+  /* cursor: text; - Removed: Motion+ Cursor handles cursor states */
   justify-content: center;
   align-items: center;
   width: 100%;
@@ -451,4 +458,66 @@
 
 [writer-scrollbar-thumb]:active {
   background: var(--scrollbar-active-color);
+}
+
+/* ============================================ */
+/* Custom Cursor Styles */
+/* ============================================ */
+
+/* Hide default cursor when custom cursor is active */
+/* Motion+ Cursor detects text elements automatically, but we can help it with data attributes */
+html,
+body,
+* {
+  cursor: none !important;
+}
+
+/* Help Motion+ Cursor detect text elements by ensuring they're selectable */
+/* Motion+ Cursor checks for selectable text, so we ensure text elements have user-select: text */
+[data-lexical-editor],
+.lexical-content-editable,
+[contenteditable],
+[contenteditable="true"],
+textarea,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="url"],
+input[type="tel"] {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.custom-cursor {
+  pointer-events: none;
+  z-index: 9999;
+  will-change: transform, opacity;
+}
+
+/* Ensure cursor doesn't interfere with text selection */
+.custom-cursor * {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Reduce padding on MotionCursor component for tighter fit */
+/* Target the cursor element directly - MotionCursor wraps content */
+[data-motion-cursor],
+[data-motion-cursor] > * {
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Use inset/negative margin to reduce visual padding */
+[data-motion-cursor] {
+  margin: -2px !important;
+}
+
+/* Even tighter for pointer state - reduce the border offset */
+[data-motion-cursor][data-variant="pointer"] {
+  margin: -4px !important;
 }

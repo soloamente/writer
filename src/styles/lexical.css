@@ -9,7 +9,7 @@
 
 /* RichTextPlugin creates a wrapper div that contains both ContentEditable and placeholder */
 .editor > div:has([data-lexical-editor]) {
-  position: relative;
+  position: relative !important;
   width: 100%;
   max-width: 900px;
   /* Center the wrapper content */
@@ -35,8 +35,19 @@
   display: block;
   box-sizing: border-box;
   position: relative;
-  /* Default caret enabled - custom cursor disabled */
-  /* caret-color: transparent !important; */
+  /* Apply iAWriterMonoV font only to editor */
+  font-family: var(--font-ia-writer-mono-v), ui-monospace, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  /* Hide default caret - we use custom TextCaret component instead */
+  caret-color: transparent !important;
+  /* Performance optimizations for smooth typing */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Hint browser about upcoming changes for better performance */
+  will-change: contents;
+  /* Prevent text size adjustment on iOS */
+  -webkit-text-size-adjust: 100%;
 }
 
 /* Ensure ContentEditable element matches .editor dimensions exactly */
@@ -54,13 +65,26 @@
   padding: var(--editor-padding-top) var(--editor-padding-right) var(--editor-padding-top) var(--editor-padding-left) !important;
   /* Center the content */
   margin: 0 auto !important;
-  /* Default caret enabled - custom cursor disabled */
-  /* caret-color: transparent !important; */
+  /* Apply iAWriterMonoV font only to editor */
+  font-family: var(--font-ia-writer-mono-v), ui-monospace, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  /* Hide default caret - we use custom TextCaret component instead */
+  caret-color: transparent !important;
+  /* Performance optimizations for smooth typing */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Hint browser about upcoming changes for better performance */
+  will-change: contents;
+  /* Prevent text size adjustment on iOS */
+  -webkit-text-size-adjust: 100%;
 }
 
 [data-lexical-editor] p {
   /* Remove top margin so caret aligns with placeholder at the top */
   margin: 0 0 0.8em 0;
+  /* Performance optimization: contain layout and style recalculations */
+  contain: layout style;
 }
 
 /* Default caret enabled - custom cursor disabled */
@@ -100,14 +124,21 @@
 }
 
 /* Placeholder positioned to match ContentEditable's text area */
-/* In Lexical RichTextPlugin, placeholder is a sibling of [data-lexical-editor] */
-/* Both are children of the wrapper, so placeholder is positioned relative to wrapper */
-.placeholder {
+/* The placeholder can be a direct child of .editor or inside the RichTextPlugin wrapper */
+/* Position it to match where the content editable's text content appears */
+.editor > div:has([data-lexical-editor]) > .placeholder,
+.editor > .placeholder {
   position: absolute;
-  /* Match ContentEditable's padding exactly - text appears inside the padding */
-  top: var(--editor-padding-top, 2rem);
-  left: var(--editor-padding-left, 4rem);
-  right: var(--editor-padding-right, 4rem);
+  /* Position to match the wrapper's location - centered both horizontally and vertically */
+  /* Match .editor's flexbox centering behavior */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 900px;
+  min-height: 60vh;
+  /* Apply the same padding as the content editable so text aligns */
+  padding: var(--editor-padding-top, 2rem) var(--editor-padding-right, 4rem) var(--editor-padding-top, 2rem) var(--editor-padding-left, 4rem);
   pointer-events: none;
   opacity: 0.5;
   color: var(--muted-foreground);
@@ -116,14 +147,12 @@
   z-index: 1;
   /* Match font properties exactly to align with text */
   font-size: inherit;
-  font-family: inherit;
+  font-family: var(--font-ia-writer-mono-v), ui-monospace, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
   font-weight: inherit;
   line-height: inherit;
   /* Remove any spacing that might offset it */
-  margin: 0;
-  padding: 0;
-  /* Ensure it's positioned correctly relative to the wrapper */
-  transform: none;
+  box-sizing: border-box;
 }
 
 /* ============================================ */
@@ -232,7 +261,7 @@
   height: 1em;
   top: 0.125em;
   left: 0;
-  cursor: pointer;
+  /* cursor: pointer; - Removed: Motion+ Cursor handles cursor states */
   position: absolute;
   border: 1px solid var(--border);
   background: var(--background);
@@ -261,7 +290,7 @@
 
 /* Image */
 .editor-image {
-  cursor: default;
+  /* cursor: default; - Removed: Motion+ Cursor handles cursor states */
   display: inline-block;
   position: relative;
   user-select: none;
@@ -274,7 +303,7 @@
 .editor-link {
   color: var(--chart-1);
   text-decoration: underline;
-  cursor: pointer;
+  /* cursor: pointer; - Removed: Motion+ Cursor handles cursor states */
   transition: color 200ms ease;
 }
 
@@ -289,6 +318,9 @@
 
 .editor-text-italic {
   font-style: italic;
+  /* Font family is inherited from [data-lexical-editor], but ensure italic variant is used */
+  font-family: var(--font-ia-writer-mono-v), ui-monospace, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 .editor-text-underline {
@@ -307,7 +339,7 @@
   background-color: var(--muted);
   padding: 0.125em 0.25em;
   border-radius: 0.25em;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+  font-family: var(--font-ia-writer-mono-v), ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
   font-size: 0.875em;
 }
@@ -326,7 +358,7 @@
 .editor-code {
   background-color: var(--muted);
   color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+  font-family: var(--font-ia-writer-mono-v), ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
   display: block;
   padding: 0.75em 1em;

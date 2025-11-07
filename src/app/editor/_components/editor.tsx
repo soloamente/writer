@@ -30,6 +30,7 @@ import { ParagraphNode } from "lexical";
 import { EditorCommandsPlugin } from "./EditorCommandsPlugin";
 import { KeyboardCommandsPlugin } from "./KeyboardCommandsPlugin";
 import { FormattingCommandsPlugin } from "./FormattingCommandsPlugin";
+import { CursorPositionPlugin } from "./CursorPositionPlugin";
 
 // Plugin to track and manage editable state
 function EditableStatePlugin({
@@ -126,6 +127,18 @@ export function getAllDocumentIds(): string[] {
   return Array.from(editorRefContext.keys());
 }
 
+// Check if there's a saved cursor position for a document
+function hasSavedCursorPosition(documentId: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const storageKey = `writer-cursor-position-${documentId}`;
+    const stored = localStorage.getItem(storageKey);
+    return stored !== null;
+  } catch {
+    return false;
+  }
+}
+
 export function Editor({
   documentId,
   initialContent,
@@ -136,6 +149,10 @@ export function Editor({
   canWrite?: boolean;
 }) {
   const [isEditable, setIsEditable] = useState(canWrite);
+  // Disable AutoFocusPlugin if we have a saved cursor position
+  const [shouldAutoFocus, setShouldAutoFocus] = useState(
+    () => !hasSavedCursorPosition(documentId),
+  );
 
   // Wrap your Lexical config with `liveblocksConfig`
   const initialConfig = liveblocksConfig({
@@ -230,11 +247,16 @@ export function Editor({
       // Skip if a save is in progress
       if (savingRef.current) return;
 
-      const jsonStr = JSON.stringify(editorState.toJSON());
-      if (jsonStr === lastSavedRef.current) return;
-
+      // Defer expensive JSON.stringify operation to avoid blocking typing
+      // This ensures typing feels smooth and responsive
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
+      
+      // Perform JSON.stringify in a deferred callback to avoid blocking the main thread
+      // Using requestAnimationFrame ensures this runs after the current frame, keeping typing smooth
+      const performSave = () => {
+        const jsonStr = JSON.stringify(editorState.toJSON());
+        if (jsonStr === lastSavedRef.current) return;
+
         savingRef.current = true;
         lastSavedRef.current = jsonStr;
         updateMutation.mutate(
@@ -245,7 +267,13 @@ export function Editor({
             },
           },
         );
-      }, 800);
+      };
+
+      // Use requestAnimationFrame to defer the save operation until after the current frame
+      // This prevents blocking the main thread during typing, making the experience smoother
+      requestAnimationFrame(() => {
+        debounceRef.current = setTimeout(performSave, 800);
+      });
     },
     [documentId, updateMutation, canWrite],
   );
@@ -281,8 +309,12 @@ export function Editor({
           )}
           ErrorBoundary={LexicalErrorBoundary}
         />
-        <AutoFocusPlugin />
+        {shouldAutoFocus && <AutoFocusPlugin />}
         <HistoryPlugin />
+        <CursorPositionPlugin
+          documentId={documentId}
+          onHasSavedPosition={(hasSaved) => setShouldAutoFocus(!hasSaved)}
+        />
         <LexicalOnChangePlugin onChange={handleChange} />
         {/* Custom cursor disabled - using default caret */}
         {/* <CursorPlugin enabled={isEditable} /> */}

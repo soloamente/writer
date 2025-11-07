@@ -123,6 +123,10 @@ export function useCommandPaletteState() {
             (commandPalette.querySelector('[value="account.logout"]') !== null ||
              commandPalette.querySelector('[value="account.info"]') !== null ||
              commandPalette.querySelector('[data-account-sidebar-item]') !== null) ||
+            // Settings page - has sidebar items
+            (commandPalette.querySelector('[value="settings.cursor.style"]') !== null ||
+             commandPalette.querySelector('[value="settings.cursor.duration"]') !== null ||
+             commandPalette.querySelector('[data-settings-sidebar-item]') !== null) ||
             // Members page - has invite user button
             commandPalette.querySelector('[value="invite.user"]') !== null ||
             // Open document page - has document items with data-value attribute

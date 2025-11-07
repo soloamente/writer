@@ -6,6 +6,7 @@ import {
   RoomProvider,
   ClientSideSuspense,
 } from "@liveblocks/react/suspense";
+import { RoomInitializingLoader } from "@/app/editor/_components/DocumentLoader";
 
 const DEFAULT_ROOM_ID = "my-room";
 
@@ -153,8 +154,8 @@ export function Room({
       }}
     >
       <RoomProvider id={roomId ?? DEFAULT_ROOM_ID}>
-        <ClientSideSuspense fallback={<div>Loading…</div>}>
-          {isRoomReady ? children : <div>Initializing room…</div>}
+        <ClientSideSuspense fallback={<RoomInitializingLoader />}>
+          {isRoomReady ? children : <RoomInitializingLoader />}
         </ClientSideSuspense>
       </RoomProvider>
     </LiveblocksProvider>
