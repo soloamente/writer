@@ -443,3 +443,270 @@
 .dark .editor-code {
   background-color: var(--card);
 }
+
+/* ============================================ */
+/* Liveblocks Collaborative Cursor Styles */
+/* ============================================ */
+
+/* Smooth entrance animation for cursors */
+@keyframes cursor-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Target Liveblocks cursor container and cursors - using highest specificity */
+.lb-root .lb-lexical-cursors,
+.lb-lexical-cursors {
+  /* Ensure proper positioning and visibility */
+  position: relative !important;
+  z-index: 9999 !important;
+}
+
+/* Style the cursor line - Liveblocks renders it as a child element or background */
+.lb-root .lb-lexical-cursors .lb-cursor,
+.lb-lexical-cursors .lb-cursor,
+.lb-root .lb-lexical-cursors > div:not(:has(div)),
+.lb-lexical-cursors > div:not(:has(div)) {
+  /* Cursor line styles */
+  width: 2px !important;
+  min-width: 2px !important;
+  opacity: 0.9 !important;
+  border-radius: 1px !important;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2) !important;
+  transition: opacity 200ms ease-out, transform 80ms cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  animation: cursor-appear 200ms ease-out !important;
+  pointer-events: none !important;
+}
+
+/* Add cursor line via ::before pseudo-element - this creates the visible cursor line */
+.lb-root .lb-lexical-cursors::before,
+.lb-lexical-cursors::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 2px !important;
+  background-color: currentColor !important;
+  opacity: 0.9 !important;
+  border-radius: 1px !important;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2) !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  transition: opacity 200ms ease-out, transform 80ms cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  animation: cursor-appear 200ms ease-out !important;
+  /* Ensure it doesn't interfere with label positioning */
+  margin-right: 4px !important;
+}
+
+/* Individual cursor elements within lb-lexical-cursors - target all divs with maximum specificity */
+.lb-root .lb-lexical-cursors > div,
+.lb-lexical-cursors > div,
+.lb-root .lb-lexical-cursors div,
+.lb-lexical-cursors div,
+div.lb-lexical-cursors > div,
+div.lb-lexical-cursors div {
+  /* Make cursor line more visible and smooth - only apply to small positioned elements */
+  transition: opacity 200ms ease-out, transform 80ms cubic-bezier(0.25, 0.46, 0.45, 0.94), width 200ms ease-out !important;
+  will-change: transform, opacity !important;
+  animation: cursor-appear 200ms ease-out !important;
+}
+
+/* Target cursor lines specifically - elements that are positioned and small */
+.lb-root .lb-lexical-cursors > div[style*="position"],
+.lb-lexical-cursors > div[style*="position"],
+.lb-root .lb-lexical-cursors div[style*="position"],
+.lb-lexical-cursors div[style*="position"] {
+  width: 2px !important;
+  min-width: 2px !important;
+  opacity: 0.9 !important;
+  border-radius: 1px !important;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* User label/tooltip containers - check for text content */
+.lb-root .lb-lexical-cursors > div > div,
+.lb-lexical-cursors > div > div,
+.lb-root .lb-lexical-cursors div div,
+.lb-lexical-cursors div div {
+  /* Modern, clean design for user labels */
+  padding: 0.375rem 0.625rem !important;
+  border-radius: 0.375rem !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  transition: opacity 200ms ease-out, transform 200ms ease-out !important;
+  will-change: transform, opacity !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+  z-index: 10000 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Target ALL elements within the editor that are positioned absolutely with pointer-events: none
+   These are likely Liveblocks cursors regardless of their class names */
+[data-lexical-editor] > div > div[style*="position: absolute"],
+[data-lexical-editor] > div > div[style*="position:fixed"],
+.lexical-content-editable > div[style*="position: absolute"],
+.lexical-content-editable > div[style*="position:fixed"],
+[data-lexical-editor] div[style*="position: absolute"][style*="pointer-events: none"],
+.lexical-content-editable div[style*="position: absolute"][style*="pointer-events: none"] {
+  /* Make cursor line more visible and smooth */
+  width: 2px !important;
+  opacity: 0.9 !important;
+  border-radius: 1px !important;
+  transition: opacity 200ms ease-out, transform 80ms cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  will-change: transform, opacity !important;
+  /* Add subtle shadow for better visibility */
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2) !important;
+  animation: cursor-appear 200ms ease-out !important;
+}
+
+/* Target any div that contains text (user name labels) within cursor containers */
+[data-lexical-editor] div[style*="position: absolute"] > div,
+[data-lexical-editor] div[style*="position:fixed"] > div,
+.lexical-content-editable div[style*="position: absolute"] > div,
+.lexical-content-editable div[style*="position:fixed"] > div {
+  /* Modern, clean design for user labels */
+  padding: 0.375rem 0.625rem !important;
+  border-radius: 0.375rem !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  /* Smooth animations */
+  transition: opacity 200ms ease-out, transform 200ms ease-out !important;
+  will-change: transform, opacity !important;
+  /* Better typography */
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+  /* Ensure label is above cursor */
+  z-index: 10000 !important;
+  /* Add subtle shadow for depth */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  /* Better contrast */
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Target specific Liveblocks class patterns (common variations) */
+[data-lb-cursor],
+.lb-cursor,
+[class*="lb-cursor"],
+[class*="liveblocks-cursor"],
+[class*="y-remote"],
+.y-remote-selection,
+[data-yjs-cursor] {
+  width: 2px !important;
+  opacity: 0.9 !important;
+  border-radius: 1px !important;
+  transition: opacity 200ms ease-out, transform 80ms cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  will-change: transform, opacity !important;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2) !important;
+  animation: cursor-appear 200ms ease-out !important;
+}
+
+/* User label/tooltip containers */
+[data-lb-cursor-label],
+.lb-cursor-label,
+[class*="lb-cursor-label"],
+[class*="liveblocks-cursor-label"],
+[data-lb-cursor] > div,
+.lb-cursor > div,
+[class*="lb-cursor"] > div {
+  padding: 0.375rem 0.625rem !important;
+  border-radius: 0.375rem !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  transition: opacity 200ms ease-out, transform 200ms ease-out !important;
+  will-change: transform, opacity !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+  z-index: 10000 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Selection highlighting - Liveblocks wraps selections in spans */
+/* Target spans with data-lexical-text that have inline background styles */
+span[data-lexical-text="true"][style*="background"],
+span[data-lexical-text="true"][data-lb-selection-styled="true"],
+[data-lb-selection],
+.lb-selection,
+[class*="lb-selection"],
+[class*="liveblocks-selection"] {
+  border-radius: 2px !important;
+  transition: opacity 200ms ease-out, background-color 200ms ease-out !important;
+  animation: cursor-appear 200ms ease-out !important;
+  /* Make selections more visible */
+  padding: 1px 2px !important;
+  margin: -1px -2px !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* More specific targeting for spans with background colors set by Liveblocks */
+/* Catch both "background:" and "background-color:" variations */
+[data-lexical-editor] span[data-lexical-text="true"][style*="background"],
+.lexical-content-editable span[data-lexical-text="true"][style*="background"] {
+  border-radius: 2px !important;
+  padding: 1px 2px !important;
+  margin: -1px -2px !important;
+  transition: background-color 200ms ease-out !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Ensure cursors don't interfere */
+[data-lb-cursor],
+.lb-cursor,
+[class*="lb-cursor"],
+[data-lb-cursor-label],
+.lb-cursor-label,
+[class*="lb-cursor-label"],
+[data-lexical-editor] div[style*="pointer-events: none"] {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+}
+
+/* Dark mode improvements */
+.dark [data-lb-cursor],
+.dark .lb-cursor,
+.dark [class*="lb-cursor"],
+.dark [data-lexical-editor] div[style*="position: absolute"][style*="pointer-events: none"] {
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark [data-lb-cursor-label],
+.dark .lb-cursor-label,
+.dark [class*="lb-cursor-label"] {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Improve readability of user names */
+[data-lb-cursor-label] span,
+.lb-cursor-label span,
+[class*="lb-cursor-label"] span,
+[data-lexical-editor] div[style*="position: absolute"] span {
+  display: inline-block !important;
+  max-width: 200px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  letter-spacing: 0.01em !important;
+}

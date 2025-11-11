@@ -31,6 +31,8 @@ import { EditorCommandsPlugin } from "./EditorCommandsPlugin";
 import { KeyboardCommandsPlugin } from "./KeyboardCommandsPlugin";
 import { FormattingCommandsPlugin } from "./FormattingCommandsPlugin";
 import { CursorPositionPlugin } from "./CursorPositionPlugin";
+import { CursorInspector } from "./CursorInspector";
+import { CursorStyler } from "./CursorStyler";
 
 // Plugin to track and manage editable state
 function EditableStatePlugin({
@@ -325,6 +327,10 @@ export function Editor({
           <Threads />
           <FloatingToolbar />
         </LiveblocksPlugin>
+        {/* Temporarily enable cursor inspector to identify Liveblocks cursor classes */}
+        <CursorInspector />
+        {/* Dynamic cursor styler that applies styles to any cursor elements */}
+        <CursorStyler />
       </div>
     </LexicalComposer>
   );

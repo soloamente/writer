@@ -1382,7 +1382,7 @@ export function CommandPalette({
         <Command
           className="overflow-hidden"
           value={selectedValue}
-          shouldFilter={false}
+          shouldFilter={true}
           onKeyDownCapture={(e) => {
             // CRITICAL: Intercept arrow keys in capture phase BEFORE cmdk processes them
             // Handle vertical navigation (up/down) for settings detail view

@@ -92,3 +92,5 @@ All errors are automatically handled and thrown as exceptions with descriptive m
 See `src/components/playground/money-converter.tsx` for a complete example of using the exchange rate API in a React component.
 
 
+
+
