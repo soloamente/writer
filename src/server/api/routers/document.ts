@@ -1,5 +1,6 @@
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 
@@ -248,7 +249,7 @@ export const documentRouter = createTRPCRouter({
         where: { id: input.id },
         data: {
           title: input.title ?? undefined,
-          content: parsed as Record<string, unknown>,
+          content: parsed as Prisma.InputJsonValue,
         },
         select: { id: true, updatedAt: true },
       });
