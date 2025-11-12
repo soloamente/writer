@@ -331,7 +331,10 @@ export function moveToTop(select?: boolean): void {
   const { cursors } = editor;
 
   if (cursors.length > 0) {
-    cursors[0].moveToTop(select);
+    const firstCursor = cursors[0];
+    if (firstCursor) {
+      firstCursor.moveToTop(select);
+    }
   }
 }
 
@@ -344,7 +347,10 @@ export function moveToBottom(select?: boolean): void {
   const { cursors } = editor;
 
   if (cursors.length > 0) {
-    cursors[0].moveToBottom(select);
+    const firstCursor = cursors[0];
+    if (firstCursor) {
+      firstCursor.moveToBottom(select);
+    }
   }
 }
 
@@ -356,8 +362,11 @@ export function selectAll(): void {
   const { cursors } = editor;
 
   if (cursors.length > 0) {
-    cursors[0].moveToTop();
-    cursors[0].moveToBottom(true);
+    const firstCursor = cursors[0];
+    if (firstCursor) {
+      firstCursor.moveToTop();
+      firstCursor.moveToBottom(true);
+    }
   }
 }
 
@@ -436,7 +445,10 @@ export function mergeCursors(): void {
  */
 export function flattenToOneCursor(): void {
   if (editor.cursors.length > 0) {
-    editor.cursors = [editor.cursors[0]];
+    const firstCursor = editor.cursors[0];
+    if (firstCursor) {
+      editor.cursors = [firstCursor];
+    }
   }
 }
 
