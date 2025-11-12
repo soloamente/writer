@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
     // Liveblocks requires exact permission sets:
     // - write: ["room:write"]
     // - read: ["room:read", "room:presence:write"]
-    const userPermissions = canWrite
-      ? ([("room:write" as const)] as readonly ["room:write"]) 
-      : (["room:read", "room:presence:write"] as const);
+    const userPermissions: ["room:write"] | ["room:read", "room:presence:write"] = canWrite
+      ? ["room:write"]
+      : ["room:read", "room:presence:write"];
 
     // Check if room exists, if not create it with permissions
     let roomExists = false;
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         await liveblocks.createRoom(roomId, {
           // Give the current user appropriate access based on their permission
           usersAccesses: {
-            [user.id]: userPermissions as unknown as string[],
+            [user.id]: userPermissions,
           },
           // Make the room private by default; grant explicit access via usersAccesses
           defaultAccesses: [],
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     // Ensure current user has appropriate access (for both new and existing rooms)
     await liveblocks.updateRoom(roomId, {
       usersAccesses: {
-        [user.id]: userPermissions as unknown as string[],
+        [user.id]: userPermissions,
       },
     });
 
