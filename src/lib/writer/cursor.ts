@@ -73,8 +73,8 @@ class Cursor {
    * @param {Point} focus
    */
   moveSelection(anchor: Point, focus: Point): void {
-    this.moveTo(anchor.line, anchor.column, false, false);
-    this.moveTo(focus.line, focus.column, true, true);
+    this.moveTo(anchor.line, anchor.column, false);
+    this.moveTo(focus.line, focus.column, true);
   }
 
   /**
