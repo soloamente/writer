@@ -2,7 +2,9 @@ import { Liveblocks } from "@liveblocks/node";
 import { auth } from "@/lib/auth";
 import { env } from "@/env";
 import { type NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import { db } from "@/db";
+import { document, documentMember } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 const liveblocks = new Liveblocks({
   secret: env.LIVEBLOCKS_SECRET_KEY,
@@ -47,21 +49,25 @@ export async function POST(request: NextRequest) {
     
     // Check user's permission level for this document
     const [doc, membership] = await Promise.all([
-      prisma.document.findFirst({
-        where: { id: documentId, userId: user.id },
-        select: { id: true },
-      }),
-      prisma.documentMember.findFirst({
-        where: {
-          documentId,
-          userId: user.id,
-        },
-        select: { role: true },
-      }),
+      db
+        .select({ id: document.id })
+        .from(document)
+        .where(and(eq(document.id, documentId), eq(document.userId, user.id)))
+        .limit(1),
+      db
+        .select({ role: documentMember.role })
+        .from(documentMember)
+        .where(
+          and(
+            eq(documentMember.documentId, documentId),
+            eq(documentMember.userId, user.id)
+          )
+        )
+        .limit(1),
     ]);
 
-    const isOwner = !!doc;
-    const canWrite = isOwner || membership?.role === "write";
+    const isOwner = !!doc[0];
+    const canWrite = isOwner || membership[0]?.role === "write";
     // Liveblocks requires exact permission sets:
     // - write: ["room:write"]
     // - read: ["room:read", "room:presence:write"]

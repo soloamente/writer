@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import { db } from "@/db";
+import { user } from "@/db/schema";
+import { eq, and, or, like, inArray, not } from "drizzle-orm";
 import { type NextRequest } from "next/server";
 
 /**
@@ -47,21 +49,15 @@ export async function GET(request: NextRequest) {
         return Response.json([]);
       }
 
-      const users = await prisma.user.findMany({
-        where: {
-          id: {
-            in: ids,
-          },
-          // Don't return banned users
-          banned: false,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-        },
-      });
+      const users = await db
+        .select({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+        })
+        .from(user)
+        .where(and(inArray(user.id, ids), eq(user.banned, false)));
 
       // Return users in the same order as requested IDs
       const userMap = new Map(users.map((user) => [user.id, user]));
@@ -80,38 +76,28 @@ export async function GET(request: NextRequest) {
 
     // If text is provided (including empty string), search for users
     if (text !== null) {
-      const whereClause = text
-        ? {
-            banned: false,
-            OR: [
-              {
-                name: {
-                  contains: text,
-                  mode: "insensitive" as const,
-                },
-              },
-              {
-                email: {
-                  contains: text,
-                  mode: "insensitive" as const,
-                },
-              },
-            ],
-          }
-        : {
-            banned: false,
-          };
-
-      const users = await prisma.user.findMany({
-        where: whereClause,
-        select: {
-          id: true,
-        },
-        take: text ? 10 : 50, // Limit results: 10 when searching, 50 when showing all
-      });
+      const users = text
+        ? await db
+            .select({ id: user.id })
+            .from(user)
+            .where(
+              and(
+                eq(user.banned, false),
+                or(
+                  like(user.name, `%${text}%`),
+                  like(user.email, `%${text}%`)
+                )
+              )
+            )
+            .limit(10)
+        : await db
+            .select({ id: user.id })
+            .from(user)
+            .where(eq(user.banned, false))
+            .limit(50);
 
       // Return just the user IDs for mention suggestions
-      return Response.json(users.map((user) => user.id));
+      return Response.json(users.map((u) => u.id));
     }
 
     // If neither userIds nor text is provided, return empty array

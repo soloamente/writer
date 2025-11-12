@@ -6,7 +6,9 @@ import { DocumentLoadingLoader } from "@/app/editor/_components/DocumentLoader";
 
 async function EditorContent({ documentId }: { documentId: string }) {
   const { auth } = await import("@/lib/auth");
-  const prisma = (await import("@/lib/prisma")).default;
+  const { db } = await import("@/db");
+  const { document: documentTable, documentMember } = await import("@/db/schema");
+  const { eq, and } = await import("drizzle-orm");
   const { headers } = await import("next/headers");
   const { redirect } = await import("next/navigation");
 
@@ -19,34 +21,55 @@ async function EditorContent({ documentId }: { documentId: string }) {
 
   // Check if user owns the document or has access via membership
   const [doc, membership] = await Promise.all([
-    prisma.document.findFirst({
-      where: { id: documentId, userId },
-      select: { id: true, content: true, title: true },
-    }),
-    prisma.documentMember.findFirst({
-      where: {
-        documentId: documentId,
-        userId,
-      },
-      include: {
-        document: {
-          select: { id: true, content: true, title: true },
-        },
-      },
-    }),
-  ]);
+    db
+      .select({
+        id: documentTable.id,
+        content: documentTable.content,
+        title: documentTable.title,
+      })
+      .from(documentTable)
+      .where(and(eq(documentTable.id, documentId), eq(documentTable.userId, userId)))
+      .limit(1),
+    db
+      .select({
+        id: documentMember.id,
+        role: documentMember.role,
+        docId: documentTable.id,
+        docContent: documentTable.content,
+        docTitle: documentTable.title,
+      })
+      .from(documentMember)
+      .innerJoin(documentTable, eq(documentMember.documentId, documentTable.id))
+      .where(
+        and(
+          eq(documentMember.documentId, documentId),
+          eq(documentMember.userId, userId)
+        )
+      )
+      .limit(1),
+    ]);
 
-  if (!doc && !membership) redirect("/editor");
+  if (!doc[0] && !membership[0]) redirect("/editor");
 
-  const document = doc ?? membership!.document;
+  const document = doc[0]
+    ? {
+        id: doc[0].id,
+        content: doc[0].content,
+        title: doc[0].title,
+      }
+    : {
+        id: membership[0]!.docId,
+        content: membership[0]!.docContent,
+        title: membership[0]!.docTitle,
+      };
   // Pass stringified initial content; Lexical accepts a serialized editor state string
   const initialContent = JSON.stringify(document.content ?? {});
   const initialTitle = document.title ?? "Untitled";
 
   // Check if user is owner (owners always have write access)
-  const isOwner = !!doc;
+  const isOwner = !!doc[0];
   // Determine user's permission level
-  const canWrite = isOwner || membership?.role === "write";
+  const canWrite = isOwner || membership[0]?.role === "write";
 
   return (
     <Room roomId={`writer-doc-${document.id}`}>

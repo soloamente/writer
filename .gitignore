@@ -44,6 +44,4 @@ yarn-error.log*
 
 # idea files
 .idea
-/src/generated/prisma
-
-/app/generated/prisma
+/drizzle

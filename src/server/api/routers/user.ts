@@ -1,5 +1,7 @@
 import { z } from "zod";
-import prisma from "@/lib/prisma";
+import { db } from "@/db";
+import { user } from "@/db/schema";
+import { eq, and, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 
@@ -19,32 +21,44 @@ export const userRouter = createTRPCRouter({
 
       // Check if username is already taken by another user
       if (input.username !== undefined && input.username !== null) {
-        const existingUser = await prisma.user.findFirst({
-          where: {
-            username: input.username,
-            id: { not: session.user.id },
-          },
-          select: { id: true },
-        });
+        const [existingUser] = await db
+          .select({ id: user.id })
+          .from(user)
+          .where(
+            and(
+              eq(user.username, input.username),
+              ne(user.id, session.user.id)
+            )
+          )
+          .limit(1);
+
         if (existingUser) {
           throw new Error("Username is already taken");
         }
       }
 
-      const updated = await prisma.user.update({
-        where: { id: session.user.id },
-        data: {
-          ...(input.name !== undefined && { name: input.name }),
-          ...(input.username !== undefined && { username: input.username }),
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          username: true,
-          updatedAt: true,
-        },
-      });
+      const updateData: { name?: string; username?: string | null; updatedAt: Date } = {
+        updatedAt: new Date(),
+      };
+
+      if (input.name !== undefined) {
+        updateData.name = input.name;
+      }
+      if (input.username !== undefined) {
+        updateData.username = input.username;
+      }
+
+      const [updated] = await db
+        .update(user)
+        .set(updateData)
+        .where(eq(user.id, session.user.id))
+        .returning({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          username: user.username,
+          updatedAt: user.updatedAt,
+        });
 
       return updated;
     }),
