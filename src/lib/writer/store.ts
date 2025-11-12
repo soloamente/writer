@@ -19,7 +19,7 @@ type CanvasContext = CanvasRenderingContext2D | null;
 /**
  * Store state interface matching EditorState but with reactive properties
  */
-interface EditorStoreState {
+interface EditorStoreState extends Record<string, unknown> {
   drawing: {
     scroll: number;
     scrollbar: { opacity: number };
