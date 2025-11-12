@@ -651,6 +651,7 @@ export function CommandPalette({
   const createMutation = api.document.create.useMutation({
     onSuccess: async (doc) => {
       // Invite all members after document creation
+      if (!doc) return;
       if (newDocMembers.length > 0) {
         const invitePromises = newDocMembers.map((member) =>
           inviteMutation.mutateAsync({
