@@ -322,7 +322,7 @@ function syncSelectionToDOM(editor: any): boolean {
     });
 
     // If we found a DOM node, set the selection
-    if (domNode && domNode.textContent !== null) {
+    if (domNode && domNode.nodeType === Node.TEXT_NODE && domNode.textContent !== null) {
       const domSelection = window.getSelection();
       if (domSelection) {
         const range = document.createRange();
