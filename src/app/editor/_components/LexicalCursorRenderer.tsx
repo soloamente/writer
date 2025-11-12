@@ -287,13 +287,15 @@ export function LexicalCursorRenderer() {
               // This is the most reliable method - if previousCursorPoint exists and is on same line OR was on different line, use it
               if ((isOnSameLineAsPoint || wasOnDifferentLineFromPoint) && previousCursorPoint !== null) {
                 try {
+                  // Store in local variable for TypeScript narrowing across callback boundary
+                  const cursorPoint = previousCursorPoint;
                   const pointBasedPosition = editor.getEditorState().read(() => {
                     const root = $getRoot();
                     const children = root.getChildren();
                     
-                    // Use previousCursorPoint.line to find the correct paragraph directly
-                    if (previousCursorPoint.line >= 0 && previousCursorPoint.line < children.length) {
-                      const targetParagraph = children[previousCursorPoint.line];
+                    // Use cursorPoint.line to find the correct paragraph directly
+                    if (cursorPoint && cursorPoint.line >= 0 && cursorPoint.line < children.length) {
+                      const targetParagraph = children[cursorPoint.line];
                       if (targetParagraph) {
                         const targetParagraphKey = targetParagraph.getKey();
                         const paragraphDOM = editor.getElementByKey(targetParagraphKey);
