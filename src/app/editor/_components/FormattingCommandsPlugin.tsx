@@ -496,7 +496,9 @@ export function FormattingCommandsPlugin(_props: FormattingCommandsPluginProps) 
           editor.update(() => {
             const selection = $getSelection();
             if ($isRangeSelection(selection)) {
-              selection.collapse();
+              // Collapse selection by setting focus to anchor position
+              const anchor = selection.anchor;
+              selection.focus.set(anchor.key, anchor.offset, anchor.type);
             }
           });
 
