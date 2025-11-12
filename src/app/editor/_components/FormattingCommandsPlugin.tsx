@@ -252,7 +252,10 @@ export function FormattingCommandsPlugin(_props: FormattingCommandsPluginProps) 
                   // Insert children after the link node (in reverse order to maintain correct order)
                   // then remove the link node
                   for (let i = children.length - 1; i >= 0; i--) {
-                    node.insertAfter(children[i]);
+                    const child = children[i];
+                    if (child) {
+                      node.insertAfter(child);
+                    }
                   }
                   node.remove();
                 }
