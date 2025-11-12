@@ -996,12 +996,13 @@ export function LexicalCursorRenderer() {
                   // Fall through to previous position
                 }
                 
-                if (useLexicalForDeletion && lexicalDeletionPosition) {
+                if (useLexicalForDeletion && lexicalDeletionPosition !== null) {
                   // Use Lexical position for deletion - it knows the correct paragraph
                   // This ensures cursor stays on the correct line when deleting all text on that line
-                  const targetLeft = lexicalDeletionPosition.left;
-                  const targetTop = lexicalDeletionPosition.top;
-                  const targetHeight = lexicalDeletionPosition.height;
+                  const deletionPos: { left: number; top: number; height: number } = lexicalDeletionPosition;
+                  const targetLeft = deletionPos.left;
+                  const targetTop = deletionPos.top;
+                  const targetHeight = deletionPos.height;
                   
                   cursorElement.style.transform = `translate(${targetLeft}px, ${targetTop}px)`;
                   cursorElement.style.height = `${targetHeight}px`;
