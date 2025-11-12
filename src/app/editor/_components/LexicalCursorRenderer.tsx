@@ -101,7 +101,8 @@ export function LexicalCursorRenderer() {
           if (targetParagraph) {
             const paragraphKey = targetParagraph.getKey();
             for (let i = 0; i < children.length; i++) {
-              if (children[i].getKey() === paragraphKey) {
+              const child = children[i];
+              if (child && child.getKey() === paragraphKey) {
                 paragraphIndex = i;
                 break;
               }
