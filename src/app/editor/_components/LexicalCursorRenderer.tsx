@@ -1174,62 +1174,63 @@ export function LexicalCursorRenderer() {
             // 3. If DOM position is valid and not suspicious → use DOM (for real-time typing)
             // 4. Otherwise → use Lexical if available
             
-            if (lexicalPosition && shouldCompareWithLexical) {
+            if (lexicalPosition !== null && shouldCompareWithLexical) {
               // We have Lexical position - check if DOM is suspicious
-              const verticalDiff = Math.abs(rect.top - lexicalPosition.top);
+              const pos: { left: number; top: number; height: number } = lexicalPosition;
+              const verticalDiff = Math.abs(rect.top - pos.top);
               const isDifferentLine = verticalDiff > parseFloat(computedStyle.lineHeight) * 0.5;
-              const lexicalIsNotAtStart = Math.abs(lexicalPosition.left - (rootRect.left + paddingLeft)) > 5;
+              const lexicalIsNotAtStart = Math.abs(pos.left - (rootRect.left + paddingLeft)) > 5;
               
               // If DOM is at start horizontally but Lexical is NOT at start, ALWAYS use Lexical
               // This prevents cursor from jumping back to start after Enter
               // This is the key fix - if DOM says start but Lexical says elsewhere, trust Lexical
               if (isAtStartHorizontal && lexicalIsNotAtStart) {
-                cursorElement.style.transform = `translate(${lexicalPosition.left}px, ${lexicalPosition.top}px)`;
-                cursorElement.style.height = `${lexicalPosition.height}px`;
+                cursorElement.style.transform = `translate(${pos.left}px, ${pos.top}px)`;
+                cursorElement.style.height = `${pos.height}px`;
                 cursorElement.style.display = "block";
                 
-                previousLeft = lexicalPosition.left;
-                previousTop = lexicalPosition.top;
+                previousLeft = pos.left;
+                previousTop = pos.top;
                 wasOnNonStartLine = true;
                 isUsingLexicalPosition = true; // Persist Lexical usage
-                lastLexicalPosition = lexicalPosition;
+                lastLexicalPosition = pos;
                 lastParagraphKey = currentParagraphKey;
                 return;
               }
               
               // If DOM is at start and Lexical is on different line, ALWAYS use Lexical
               if (isAtStart && isDifferentLine) {
-                cursorElement.style.transform = `translate(${lexicalPosition.left}px, ${lexicalPosition.top}px)`;
-                cursorElement.style.height = `${lexicalPosition.height}px`;
+                cursorElement.style.transform = `translate(${pos.left}px, ${pos.top}px)`;
+                cursorElement.style.height = `${pos.height}px`;
                 cursorElement.style.display = "block";
                 
-                previousLeft = lexicalPosition.left;
-                previousTop = lexicalPosition.top;
+                previousLeft = pos.left;
+                previousTop = pos.top;
                 wasOnNonStartLine = true;
                 isUsingLexicalPosition = true;
-                lastLexicalPosition = lexicalPosition;
+                lastLexicalPosition = pos;
                 lastParagraphKey = currentParagraphKey;
                 return;
               }
               
               // If Enter was just pressed or jumped back, prefer Lexical
               if (justPressedEnter || jumpedBackToStart || isAtPaddingEdge) {
-                cursorElement.style.transform = `translate(${lexicalPosition.left}px, ${lexicalPosition.top}px)`;
-                cursorElement.style.height = `${lexicalPosition.height}px`;
+                cursorElement.style.transform = `translate(${pos.left}px, ${pos.top}px)`;
+                cursorElement.style.height = `${pos.height}px`;
                 cursorElement.style.display = "block";
                 
-                previousLeft = lexicalPosition.left;
-                previousTop = lexicalPosition.top;
+                previousLeft = pos.left;
+                previousTop = pos.top;
                 wasOnNonStartLine = true;
                 isUsingLexicalPosition = true;
-                lastLexicalPosition = lexicalPosition;
+                lastLexicalPosition = pos;
                 lastParagraphKey = currentParagraphKey;
                 
                 // Save the line position after Enter - this helps maintain position when deleting
                 if (justPressedEnter) {
                   savedLinePositionAfterEnter = {
-                    top: lexicalPosition.top,
-                    left: lexicalPosition.left
+                    top: pos.top,
+                    left: pos.left
                   };
                 }
                 return;
@@ -1243,18 +1244,18 @@ export function LexicalCursorRenderer() {
                 const domLexicalDiff = Math.abs(rect.top - lastLexicalPosition.top);
                 
                 // Update Lexical position if paragraph changed or position changed significantly
-                const lexicalVerticalDiff = Math.abs(lexicalPosition.top - lastLexicalPosition.top);
+                const lexicalVerticalDiff = Math.abs(pos.top - lastLexicalPosition.top);
                 if (paragraphChanged || lexicalVerticalDiff > parseFloat(computedStyle.lineHeight) * 0.3) {
                   // Lexical position changed significantly - user deleted/moved, update position
                   isUsingLexicalPosition = true;
-                  lastLexicalPosition = lexicalPosition;
+                  lastLexicalPosition = pos;
                   lastParagraphKey = currentParagraphKey;
-                  cursorElement.style.transform = `translate(${lexicalPosition.left}px, ${lexicalPosition.top}px)`;
-                  cursorElement.style.height = `${lexicalPosition.height}px`;
+                  cursorElement.style.transform = `translate(${pos.left}px, ${pos.top}px)`;
+                  cursorElement.style.height = `${pos.height}px`;
                   cursorElement.style.display = "block";
                   
-                  previousLeft = lexicalPosition.left;
-                  previousTop = lexicalPosition.top;
+                  previousLeft = pos.left;
+                  previousTop = pos.top;
                   wasOnNonStartLine = !isAtStartHorizontal;
                   return;
                 }
@@ -1377,16 +1378,17 @@ export function LexicalCursorRenderer() {
             }
             
             // Fallback: if we have Lexical position but DOM is invalid, use Lexical
-            if (lexicalPosition && shouldCompareWithLexical) {
-              cursorElement.style.transform = `translate(${lexicalPosition.left}px, ${lexicalPosition.top}px)`;
-              cursorElement.style.height = `${lexicalPosition.height}px`;
+            if (lexicalPosition !== null && shouldCompareWithLexical) {
+              const pos: { left: number; top: number; height: number } = lexicalPosition;
+              cursorElement.style.transform = `translate(${pos.left}px, ${pos.top}px)`;
+              cursorElement.style.height = `${pos.height}px`;
               cursorElement.style.display = "block";
               
-              previousLeft = lexicalPosition.left;
-              previousTop = lexicalPosition.top;
+              previousLeft = pos.left;
+              previousTop = pos.top;
               wasOnNonStartLine = true;
               isUsingLexicalPosition = true;
-              lastLexicalPosition = lexicalPosition;
+              lastLexicalPosition = pos;
               lastParagraphKey = currentParagraphKey;
               return;
             }
