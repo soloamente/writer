@@ -895,7 +895,7 @@ export function withinBounds(
  * @returns {Promise<void>}
  */
 export async function delay(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(resolve));
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
 /**
