@@ -1,4 +1,5 @@
 import { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { withAccelerate } from "@prisma/extension-accelerate";
 
 const globalForPrisma = global as unknown as {
@@ -6,11 +7,15 @@ const globalForPrisma = global as unknown as {
 };
 
 // Configure Prisma with connection pooling settings
-const prismaClientOptions = {
+const prismaClientOptions: {
+  log: Prisma.LogLevel[];
+  datasources: { db: { url: string | undefined } };
+  errorFormat: "pretty";
+} = {
   log:
     process.env.NODE_ENV === "development"
-      ? ["query", "error", "warn"]
-      : ["error"],
+      ? (["query", "error", "warn"] as Prisma.LogLevel[])
+      : (["error"] as Prisma.LogLevel[]),
   datasources: {
     db: {
       url: process.env.DATABASE_URL,
@@ -18,7 +23,7 @@ const prismaClientOptions = {
   },
   // Add connection timeout and pool settings
   errorFormat: "pretty",
-} as const;
+};
 
 const prisma =
   globalForPrisma.prisma ||
