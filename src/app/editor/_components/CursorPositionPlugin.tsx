@@ -156,7 +156,6 @@ function setSelectionToOffset(offset: number): boolean {
         
         selection.anchor.set(nodeKey, clampedOffset, "text");
         selection.focus.set(nodeKey, clampedOffset, "text");
-        selection.collapse();
         $setSelection(selection);
         return true;
       } else {
@@ -174,7 +173,6 @@ function setSelectionToOffset(offset: number): boolean {
               const selection = $createRangeSelection();
               selection.anchor.set(firstChild.getKey(), 0, "text");
               selection.focus.set(firstChild.getKey(), 0, "text");
-              selection.collapse();
               $setSelection(selection);
               return true;
             }
