@@ -97,15 +97,20 @@ export function createStore<T extends Record<string, unknown>>(
     const proxy = useMemo(() => {
       stateRef.current = state;
       return new Proxy({} as T, {
-        get(_, property: keyof T) {
+        get(_, property: string | symbol) {
           // Mark this property as tracked by this component
-          tracked.current[property] = true;
-          // Return current value
-          return stateRef.current[property];
+          if (typeof property === "string" && property in stateRef.current) {
+            tracked.current[property as keyof T] = true;
+            // Return current value
+            return stateRef.current[property as keyof T];
+          }
+          return undefined;
         },
-        set(_, property: keyof T, value: T[keyof T]) {
+        set(_, property: string | symbol, value: unknown) {
           // Update state when property is set
-          setState(property, value);
+          if (typeof property === "string" && property in stateRef.current) {
+            setState(property as keyof T, value as T[keyof T]);
+          }
           return true;
         },
       });
