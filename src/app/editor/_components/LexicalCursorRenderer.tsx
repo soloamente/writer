@@ -404,7 +404,10 @@ export function LexicalCursorRenderer() {
                     
                     // Method 4: Use the last paragraph (most likely where you were typing)
                     if (!targetParagraphKey && children.length > 0) {
-                      targetParagraphKey = children[children.length - 1].getKey();
+                      const lastChild = children[children.length - 1];
+                      if (lastChild) {
+                        targetParagraphKey = lastChild.getKey();
+                      }
                     }
                     
                     if (targetParagraphKey) {
@@ -564,7 +567,10 @@ export function LexicalCursorRenderer() {
                     // Method 4: Use the last paragraph (most likely where you were typing)
                     // This is important - when you delete all text on a new line, you're likely in the last paragraph
                     if (!targetParagraphKey && children.length > 0) {
-                      targetParagraphKey = children[children.length - 1].getKey();
+                      const lastChild = children[children.length - 1];
+                      if (lastChild) {
+                        targetParagraphKey = lastChild.getKey();
+                      }
                     }
                     
                     if (targetParagraphKey) {
@@ -697,7 +703,10 @@ export function LexicalCursorRenderer() {
                     
                     // Method 4: Last resort - use the last paragraph
                     if (!targetParagraphKey && children.length > 0) {
-                      targetParagraphKey = children[children.length - 1].getKey();
+                      const lastChild = children[children.length - 1];
+                      if (lastChild) {
+                        targetParagraphKey = lastChild.getKey();
+                      }
                     }
                     
                     if (targetParagraphKey) {
@@ -838,7 +847,10 @@ export function LexicalCursorRenderer() {
                     
                     // Method 4: Last resort - use the last paragraph
                     if (!targetParagraphKey && children.length > 0) {
-                      targetParagraphKey = children[children.length - 1].getKey();
+                      const lastChild = children[children.length - 1];
+                      if (lastChild) {
+                        targetParagraphKey = lastChild.getKey();
+                      }
                     }
                     
                     if (targetParagraphKey) {
@@ -1091,7 +1103,10 @@ export function LexicalCursorRenderer() {
                     }
                     
                     if (!targetParagraphKey && children.length > 0) {
-                      targetParagraphKey = children[children.length - 1].getKey();
+                      const lastChild = children[children.length - 1];
+                      if (lastChild) {
+                        targetParagraphKey = lastChild.getKey();
+                      }
                     }
                     
                     // Store the current paragraph key for tracking changes
@@ -1558,7 +1573,10 @@ export function LexicalCursorRenderer() {
                     
                     // Last resort: use the last paragraph (most likely where cursor is after Enter)
                     if (!targetParagraphKey && children.length > 0) {
-                      targetParagraphKey = children[children.length - 1].getKey();
+                      const lastChild = children[children.length - 1];
+                      if (lastChild) {
+                        targetParagraphKey = lastChild.getKey();
+                      }
                     }
                     
                     // Get the DOM element for the target paragraph
