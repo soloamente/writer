@@ -696,6 +696,7 @@ export function CommandPalette({
   });
   const updateTitleMutation = api.document.updateTitle.useMutation({
     onSuccess: (res) => {
+      if (!res) return;
       toastManager.add({
         title: "Title updated",
         type: "success",
