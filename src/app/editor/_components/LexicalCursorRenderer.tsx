@@ -599,13 +599,14 @@ export function LexicalCursorRenderer() {
               }
               
               // ALWAYS use Lexical position if available - it knows the correct paragraph
-              if (lexicalDeletionPosition) {
-                cursorElement.style.transform = `translate(${lexicalDeletionPosition.left}px, ${lexicalDeletionPosition.top}px)`;
-                cursorElement.style.height = `${lexicalDeletionPosition.height}px`;
+              if (lexicalDeletionPosition !== null) {
+                const deletionPos: { left: number; top: number; height: number } = lexicalDeletionPosition;
+                cursorElement.style.transform = `translate(${deletionPos.left}px, ${deletionPos.top}px)`;
+                cursorElement.style.height = `${deletionPos.height}px`;
                 cursorElement.style.display = "block";
                 
-                previousLeft = lexicalDeletionPosition.left;
-                previousTop = lexicalDeletionPosition.top;
+                previousLeft = deletionPos.left;
+                previousTop = deletionPos.top;
                 wasOnNonStartLine = true;
                 isUsingLexicalPosition = false;
                 lastLexicalPosition = null;
@@ -736,13 +737,14 @@ export function LexicalCursorRenderer() {
               
               // ALWAYS use Lexical position if available when at padding edge
               // This ensures cursor stays on correct line when deleting all text
-              if (lexicalDeletionPosition) {
-                cursorElement.style.transform = `translate(${lexicalDeletionPosition.left}px, ${lexicalDeletionPosition.top}px)`;
-                cursorElement.style.height = `${lexicalDeletionPosition.height}px`;
+              if (lexicalDeletionPosition !== null) {
+                const deletionPos: { left: number; top: number; height: number } = lexicalDeletionPosition;
+                cursorElement.style.transform = `translate(${deletionPos.left}px, ${deletionPos.top}px)`;
+                cursorElement.style.height = `${deletionPos.height}px`;
                 cursorElement.style.display = "block";
                 
-                previousLeft = lexicalDeletionPosition.left;
-                previousTop = lexicalDeletionPosition.top;
+                previousLeft = deletionPos.left;
+                previousTop = deletionPos.top;
                 wasOnNonStartLine = true;
                 isUsingLexicalPosition = false;
                 lastLexicalPosition = null;
@@ -880,15 +882,16 @@ export function LexicalCursorRenderer() {
               
               // If we got a Lexical position, use it immediately (trust Lexical over DOM when DOM is wrong)
               // Lexical knows which paragraph the cursor is actually in, even if DOM reports wrong position
-              if (lexicalDeletionPosition) {
+              if (lexicalDeletionPosition !== null) {
                 // ALWAYS use Lexical position if we have it - it's the source of truth
                 // This ensures cursor stays on the correct line when deleting all text on that line
-                cursorElement.style.transform = `translate(${lexicalDeletionPosition.left}px, ${lexicalDeletionPosition.top}px)`;
-                cursorElement.style.height = `${lexicalDeletionPosition.height}px`;
+                const deletionPos: { left: number; top: number; height: number } = lexicalDeletionPosition;
+                cursorElement.style.transform = `translate(${deletionPos.left}px, ${deletionPos.top}px)`;
+                cursorElement.style.height = `${deletionPos.height}px`;
                 cursorElement.style.display = "block";
                 
-                previousLeft = lexicalDeletionPosition.left;
-                previousTop = lexicalDeletionPosition.top;
+                previousLeft = deletionPos.left;
+                previousTop = deletionPos.top;
                 wasOnNonStartLine = true;
                 isUsingLexicalPosition = false;
                 lastLexicalPosition = null;
