@@ -354,6 +354,9 @@ function CreateDocumentCard({ index }: { index: number }) {
     try {
       setCreating(true);
       const doc = await createMutation.mutateAsync({});
+      if (!doc) {
+        throw new Error("Failed to create document");
+      }
       await utils?.document.getAll.invalidate();
       router.push(`/editor/${doc.id}`);
     } catch (error) {
