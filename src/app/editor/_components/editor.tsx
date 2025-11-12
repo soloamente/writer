@@ -121,7 +121,8 @@ export function getFirstAvailableEditor(): LexicalEditor | null {
   // Return the first editor in the registry
   // In a multi-document app, this returns the most recently registered editor
   const editors = Array.from(editorRefContext.values());
-  return editors.length > 0 ? editors[editors.length - 1] : null;
+  const lastEditor = editors.length > 0 ? editors[editors.length - 1] : undefined;
+  return lastEditor ?? null;
 }
 
 // Function to get all registered document IDs
