@@ -40,6 +40,8 @@ import {
   $getRoot,
   $createParagraphNode,
   $createTextNode,
+  $createRangeSelection,
+  $setSelection,
 } from "lexical";
 import {
   $createHeadingNode,
@@ -202,8 +204,14 @@ export function FormattingCommandsPlugin(_props: FormattingCommandsPluginProps) 
               
               // Replace selection with link
               selection.insertNodes([linkNode]);
-              if (linkNode.getFirstChild()) {
-                linkNode.getFirstChild()?.select();
+              // Select the text node inside the link
+              const firstChild = linkNode.getFirstChild();
+              if (firstChild && $isTextNode(firstChild)) {
+                const newSelection = $createRangeSelection();
+                const textLength = firstChild.getTextContentSize();
+                newSelection.anchor.set(firstChild.getKey(), textLength, "text");
+                newSelection.focus.set(firstChild.getKey(), textLength, "text");
+                $setSelection(newSelection);
               }
             }
           });
