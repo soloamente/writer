@@ -295,24 +295,26 @@ function syncSelectionToDOM(editor: any): boolean {
           if (paragraphIndex >= 0 && paragraphIndex < paragraphElements.length) {
             const domParagraph = paragraphElements[paragraphIndex];
             
-            // Find the text node within this paragraph
-            const walker = document.createTreeWalker(
-              domParagraph,
-              NodeFilter.SHOW_TEXT,
-            );
-            
-            let currentOffset = 0;
-            while (walker.nextNode()) {
-              const textNode = walker.currentNode;
-              const textLength = textNode.textContent?.length ?? 0;
+            if (domParagraph) {
+              // Find the text node within this paragraph
+              const walker = document.createTreeWalker(
+                domParagraph,
+                NodeFilter.SHOW_TEXT,
+              );
               
-              if (textOffsetInParagraph >= currentOffset && textOffsetInParagraph <= currentOffset + textLength) {
-                domNode = textNode;
-                domOffset = textOffsetInParagraph - currentOffset;
-                break;
+              let currentOffset = 0;
+              while (walker.nextNode()) {
+                const textNode = walker.currentNode;
+                const textLength = textNode.textContent?.length ?? 0;
+                
+                if (textOffsetInParagraph >= currentOffset && textOffsetInParagraph <= currentOffset + textLength) {
+                  domNode = textNode;
+                  domOffset = textOffsetInParagraph - currentOffset;
+                  break;
+                }
+                
+                currentOffset += textLength;
               }
-              
-              currentOffset += textLength;
             }
           }
         }
