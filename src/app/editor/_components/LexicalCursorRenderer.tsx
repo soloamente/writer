@@ -468,9 +468,10 @@ export function LexicalCursorRenderer() {
               
               // Fallback: use savedLinePositionAfterEnter if available, otherwise use previousTop
               // savedLinePositionAfterEnter is saved when typing after Enter, so it knows the correct line
-              const targetTop = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.top :
+              const savedPos = savedLinePositionAfterEnter;
+              const targetTop = savedPos !== null ? savedPos.top :
                                (previousTop > 0 ? previousTop : (rootRect.top + paddingTop));
-              const targetLeft = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.left :
+              const targetLeft = savedPos !== null ? savedPos.left :
                                 (previousLeft > 0 ? previousLeft : (rootRect.left + paddingLeft));
               const targetHeight = rect.height || lineHeight;
               
@@ -1351,11 +1352,12 @@ export function LexicalCursorRenderer() {
                   top: targetTop,
                   left: targetLeft
                 };
-              } else if (savedLinePositionAfterEnter) {
+              } else if (savedLinePositionAfterEnter !== null) {
                 // If we have a saved position but we're not on that line anymore, clear it
                 // Check if current position is significantly different (more than one line)
+                const savedPos: { top: number; left: number } = savedLinePositionAfterEnter;
                 const lineHeight = parseFloat(computedStyle.lineHeight) || 28;
-                const distanceFromSaved = Math.abs(targetTop - savedLinePositionAfterEnter.top);
+                const distanceFromSaved = Math.abs(targetTop - savedPos.top);
                 if (distanceFromSaved > lineHeight * 1.5) {
                   // We've moved to a different line, clear the saved position
                   savedLinePositionAfterEnter = null;
@@ -1488,9 +1490,10 @@ export function LexicalCursorRenderer() {
               
               // Fallback: use savedLinePositionAfterEnter or previousTop to stay on that line
               // savedLinePositionAfterEnter is saved when typing after Enter, so it knows the correct line
-              const targetTop = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.top :
+              const savedPos = savedLinePositionAfterEnter;
+              const targetTop = savedPos !== null ? savedPos.top :
                                (previousTop > 0 ? previousTop : (rootRect.top + paddingTop));
-              const targetLeft = savedLinePositionAfterEnter ? savedLinePositionAfterEnter.left :
+              const targetLeft = savedPos !== null ? savedPos.left :
                                 (previousLeft > 0 ? previousLeft : (rootRect.left + paddingLeft));
               const targetHeight = rect.height || lineHeight;
               
