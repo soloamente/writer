@@ -344,7 +344,7 @@ export function LexicalCursorRenderer() {
               try {
                 editor.getEditorState().read(() => {
                   const lexicalSelection = $getSelection();
-                  if (lexicalSelection && lexicalSelection.anchor) {
+                  if (lexicalSelection && $isRangeSelection(lexicalSelection)) {
                     const root = $getRoot();
                     const children = root.getChildren();
                     
@@ -501,7 +501,7 @@ export function LexicalCursorRenderer() {
               try {
                 editor.getEditorState().read(() => {
                   const lexicalSelection = $getSelection();
-                  if (lexicalSelection && lexicalSelection.anchor) {
+                  if (lexicalSelection && $isRangeSelection(lexicalSelection)) {
                     const root = $getRoot();
                     const children = root.getChildren();
                     
@@ -633,7 +633,7 @@ export function LexicalCursorRenderer() {
               try {
                 editor.getEditorState().read(() => {
                   const lexicalSelection = $getSelection();
-                  if (lexicalSelection && lexicalSelection.anchor) {
+                  if (lexicalSelection && $isRangeSelection(lexicalSelection)) {
                     const root = $getRoot();
                     const children = root.getChildren();
                     
@@ -772,7 +772,7 @@ export function LexicalCursorRenderer() {
               try {
                 editor.getEditorState().read(() => {
                   const lexicalSelection = $getSelection();
-                  if (lexicalSelection && lexicalSelection.anchor) {
+                  if (lexicalSelection && $isRangeSelection(lexicalSelection)) {
                     const root = $getRoot();
                     const children = root.getChildren();
                     
@@ -922,7 +922,7 @@ export function LexicalCursorRenderer() {
                 try {
                   editor.getEditorState().read(() => {
                     const lexicalSelection = $getSelection();
-                    if (lexicalSelection && lexicalSelection.anchor) {
+                    if (lexicalSelection && $isRangeSelection(lexicalSelection)) {
                       const root = $getRoot();
                       const children = root.getChildren();
                       
@@ -1048,7 +1048,7 @@ export function LexicalCursorRenderer() {
               try {
                 editor.getEditorState().read(() => {
                   const lexicalSelection = $getSelection();
-                  if (lexicalSelection && lexicalSelection.anchor) {
+                  if (lexicalSelection && $isRangeSelection(lexicalSelection)) {
                     const root = $getRoot();
                     const children = root.getChildren();
                     
@@ -1488,7 +1488,7 @@ export function LexicalCursorRenderer() {
               try {
                 editor.getEditorState().read(() => {
                   const lexicalSelection = $getSelection();
-                  if (lexicalSelection && lexicalSelection.anchor) {
+                  if (lexicalSelection && $isRangeSelection(lexicalSelection)) {
                     const root = $getRoot();
                     const children = root.getChildren();
                     
