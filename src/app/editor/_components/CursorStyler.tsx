@@ -323,11 +323,11 @@ export function CursorStyler() {
           if (inlineStyle.includes("background")) {
             // Extract and enhance the opacity
             const bgMatch = inlineStyle.match(/background(?:-color)?:\s*([^;]+)/);
-            if (bgMatch) {
+            if (bgMatch && bgMatch[1]) {
               const bgValue = bgMatch[1].trim();
               // Increase opacity if it's rgba
               const rgbaMatch = bgValue.match(/rgba?\(([^)]+)\)/);
-              if (rgbaMatch) {
+              if (rgbaMatch && rgbaMatch[1]) {
                 const values = rgbaMatch[1].split(",").map(v => v.trim());
                 if (values.length === 4) {
                   // Increase opacity to 0.3 for better visibility
