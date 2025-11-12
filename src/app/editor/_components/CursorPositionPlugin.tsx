@@ -186,7 +186,7 @@ function setSelectionToOffset(offset: number): boolean {
           const children = root.getChildren();
           if (children.length > 0) {
             const lastChild = children[children.length - 1];
-            if (typeof lastChild.selectEnd === "function") {
+            if (lastChild && typeof lastChild.selectEnd === "function") {
               lastChild.selectEnd();
               return true;
             }
@@ -203,7 +203,7 @@ function setSelectionToOffset(offset: number): boolean {
         const children = root.getChildren();
         if (children.length > 0) {
           const lastChild = children[children.length - 1];
-          if (typeof lastChild.selectEnd === "function") {
+          if (lastChild && typeof lastChild.selectEnd === "function") {
             lastChild.selectEnd();
             return true;
           }
