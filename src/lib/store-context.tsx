@@ -52,21 +52,26 @@ export function useContext<T extends Record<string, unknown>>() {
 
   const proxy = React.useRef(
     new Proxy({} as T, {
-      get(_, key: keyof T) {
+      get(_, key: string | symbol) {
         // Mark this property as tracked
-        tracked.current[key] = true;
-        return state[key];
+        if (typeof key === "string" && key in state) {
+          tracked.current[key as keyof T] = true;
+          return state[key as keyof T];
+        }
+        return undefined;
       },
-      set(_, key: keyof T, value: T[keyof T]) {
+      set(_, key: string | symbol, value: unknown) {
         // Update state
-        state[key] = value;
-        // Notify all subscribers
-        context.subscribe((changedKey) => {
-          if (tracked.current[changedKey]) {
-            tracked.current = {};
-            rerender({});
-          }
-        });
+        if (typeof key === "string" && key in state) {
+          state[key as keyof T] = value as T[keyof T];
+          // Notify all subscribers
+          context.subscribe((changedKey) => {
+            if (tracked.current[changedKey]) {
+              tracked.current = {};
+              rerender({});
+            }
+          });
+        }
         return true;
       },
     }),
@@ -108,15 +113,21 @@ export function Provider<T extends Record<string, unknown>>({
   const proxy = React.useMemo(
     () =>
       new Proxy({} as T, {
-        get(_, key: keyof T) {
-          return stateRef.current[key];
+        get(_, key: string | symbol) {
+          if (typeof key === "string" && key in stateRef.current) {
+            return stateRef.current[key as keyof T];
+          }
+          return undefined;
         },
-        set(_, key: keyof T, value: T[keyof T]) {
+        set(_, key: string | symbol, value: unknown) {
           // Only update if value changed
-          if (!Object.is(stateRef.current[key], value)) {
-            stateRef.current[key] = value;
-            // Notify all listeners
-            listenersRef.current.forEach((listener) => listener(key));
+          if (typeof key === "string" && key in stateRef.current) {
+            const typedKey = key as keyof T;
+            if (!Object.is(stateRef.current[typedKey], value)) {
+              stateRef.current[typedKey] = value as T[keyof T];
+              // Notify all listeners
+              listenersRef.current.forEach((listener) => listener(typedKey));
+            }
           }
           return true;
         },
