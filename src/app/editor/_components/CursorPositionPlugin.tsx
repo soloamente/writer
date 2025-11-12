@@ -324,8 +324,9 @@ function syncSelectionToDOM(editor: any): boolean {
     // If we found a DOM node, set the selection
     if (domNode) {
       // Type guard: check if it's a Text node
-      const textNode = domNode.nodeType === Node.TEXT_NODE ? domNode as Text : null;
-      if (textNode && textNode.textContent !== null) {
+      // Since we used TreeWalker with SHOW_TEXT, we know it's a Text node
+      const textNode = domNode as Text;
+      if (textNode.textContent !== null) {
         const domSelection = window.getSelection();
         if (domSelection) {
           const range = document.createRange();
