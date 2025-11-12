@@ -249,7 +249,12 @@ export function FormattingCommandsPlugin(_props: FormattingCommandsPluginProps) 
                 const parent = node.getParent();
                 if (parent) {
                   const children = node.getChildren();
-                  node.replace(...children);
+                  // Insert children after the link node (in reverse order to maintain correct order)
+                  // then remove the link node
+                  for (let i = children.length - 1; i >= 0; i--) {
+                    node.insertAfter(children[i]);
+                  }
+                  node.remove();
                 }
               }
             });
