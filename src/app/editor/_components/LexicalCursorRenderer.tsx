@@ -451,8 +451,8 @@ export function LexicalCursorRenderer() {
               
               // ALWAYS use Lexical if available, otherwise use previousTop
               // This ensures cursor stays on the correct line when deleting all text
-              const deletionPos = lexicalDeletionPosition;
-              if (deletionPos !== null) {
+              if (lexicalDeletionPosition !== null) {
+                const deletionPos: { left: number; top: number; height: number } = lexicalDeletionPosition;
                 cursorElement.style.transform = `translate(${deletionPos.left}px, ${deletionPos.top}px)`;
                 cursorElement.style.height = `${deletionPos.height}px`;
                 cursorElement.style.display = "block";
