@@ -374,7 +374,7 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        if (child.getKey() === anchorKey) {
+                        if (child && child.getKey() === anchorKey) {
                           targetParagraphKey = child.getKey();
                           break;
                         }
@@ -531,7 +531,7 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        if (child.getKey() === anchorKey) {
+                        if (child && child.getKey() === anchorKey) {
                           targetParagraphKey = child.getKey();
                           break;
                         }
@@ -663,7 +663,7 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        if (child.getKey() === anchorKey) {
+                        if (child && child.getKey() === anchorKey) {
                           targetParagraphKey = child.getKey();
                           break;
                         }
@@ -802,7 +802,7 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        if (child.getKey() === anchorKey) {
+                        if (child && child.getKey() === anchorKey) {
                           targetParagraphKey = child.getKey();
                           break;
                         }
@@ -1075,7 +1075,7 @@ export function LexicalCursorRenderer() {
                       const anchorKey = lexicalSelection.anchor.key;
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        if (child.getKey() === anchorKey) {
+                        if (child && child.getKey() === anchorKey) {
                           targetParagraphKey = child.getKey();
                           break;
                         }
@@ -1519,7 +1519,7 @@ export function LexicalCursorRenderer() {
                       const anchorKey = lexicalSelection.anchor.key;
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        if (child.getKey() === anchorKey) {
+                        if (child && child.getKey() === anchorKey) {
                           targetParagraphKey = child.getKey();
                           break;
                         }
