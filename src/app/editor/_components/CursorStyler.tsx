@@ -246,7 +246,7 @@ export function CursorStyler() {
           containerEl.style.setProperty("opacity", "0.9", "important");
           containerEl.style.setProperty("border-radius", "1px", "important");
           containerEl.style.setProperty("box-shadow", "0 0 2px rgba(0, 0, 0, 0.2)", "important");
-        } else if (!hasBgColor && allChildren.length === 1 && allChildren[0].textContent?.trim()) {
+        } else if (!hasBgColor && allChildren.length === 1 && allChildren[0] && allChildren[0].textContent?.trim()) {
           // Container only has label, cursor line might be missing - add it via border
           containerEl.style.setProperty("border-left", "2px solid currentColor", "important");
           containerEl.style.setProperty("padding-left", "4px", "important");
