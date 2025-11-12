@@ -149,7 +149,7 @@ export function Provider<T extends Record<string, unknown>>({
     () => ({
       state: proxy,
       subscribe: subscribe as (
-        listener: (key: keyof string) => void,
+        listener: (key: string) => void,
       ) => () => void,
     }),
     [proxy, subscribe],
