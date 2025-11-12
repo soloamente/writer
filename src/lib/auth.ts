@@ -17,5 +17,4 @@ export const auth = betterAuth({
     enabled: true,
   },
   plugins: [username(), anonymous(), admin(), jwt(), lastLoginMethod()],
-  trustedOrigins: ["http://localhost:3001"],
 });

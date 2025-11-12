@@ -9,10 +9,7 @@ import {
 
 // Get the base URL for the auth client
 // This should match the server-side BETTER_AUTH_URL
-const baseURL =
-  typeof window !== "undefined"
-    ? window.location.origin
-    : (process.env.NEXT_PUBLIC_BETTER_AUTH_URL ?? "http://localhost:3000");
+const baseURL = process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
 
 export const { signIn, signUp, signOut, useSession } = createAuthClient({
   baseURL,
