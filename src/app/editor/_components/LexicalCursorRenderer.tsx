@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getRoot, $createRangeSelection, $setSelection, $getSelection } from "lexical";
+import { $getRoot, $createRangeSelection, $setSelection, $getSelection, $isRangeSelection } from "lexical";
 import { Point } from "@/lib/writer/position";
 
 /**
@@ -72,7 +72,7 @@ export function LexicalCursorRenderer() {
       try {
         return editor.getEditorState().read(() => {
           const lexicalSelection = $getSelection();
-          if (!lexicalSelection || !lexicalSelection.anchor) {
+          if (!lexicalSelection || !$isRangeSelection(lexicalSelection)) {
             return null;
           }
           
