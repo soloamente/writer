@@ -265,8 +265,9 @@ function syncSelectionToDOM(editor: any): boolean {
         let textOffsetInParagraph = 0;
         
         for (const child of children) {
-          if (typeof child.getChildren === "function") {
-            const paragraphChildren = child.getChildren();
+          const childAny = child as any;
+          if (typeof childAny.getChildren === "function") {
+            const paragraphChildren = childAny.getChildren();
             let foundInParagraph = false;
             
             for (const paraChild of paragraphChildren) {
