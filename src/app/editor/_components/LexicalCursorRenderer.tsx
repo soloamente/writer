@@ -385,17 +385,19 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        const searchForTextNode = (node: any): boolean => {
-                          if (node.getKey() === anchorKey) return true;
-                          const type = node.getType?.();
-                          if (type === 'text' && node.getKey() === anchorKey) return true;
-                          const nodeChildren = node.getChildren ? node.getChildren() : [];
-                          return nodeChildren.some(searchForTextNode);
-                        };
-                        
-                        if (searchForTextNode(child)) {
-                          targetParagraphKey = child.getKey();
-                          break;
+                        if (child) {
+                          const searchForTextNode = (node: any): boolean => {
+                            if (node.getKey() === anchorKey) return true;
+                            const type = node.getType?.();
+                            if (type === 'text' && node.getKey() === anchorKey) return true;
+                            const nodeChildren = node.getChildren ? node.getChildren() : [];
+                            return nodeChildren.some(searchForTextNode);
+                          };
+                          
+                          if (searchForTextNode(child)) {
+                            targetParagraphKey = child.getKey();
+                            break;
+                          }
                         }
                       }
                     }
@@ -542,17 +544,19 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        const searchForTextNode = (node: any): boolean => {
-                          if (node.getKey() === anchorKey) return true;
-                          const type = node.getType?.();
-                          if (type === 'text' && node.getKey() === anchorKey) return true;
-                          const nodeChildren = node.getChildren ? node.getChildren() : [];
-                          return nodeChildren.some(searchForTextNode);
-                        };
-                        
-                        if (searchForTextNode(child)) {
-                          targetParagraphKey = child.getKey();
-                          break;
+                        if (child) {
+                          const searchForTextNode = (node: any): boolean => {
+                            if (node.getKey() === anchorKey) return true;
+                            const type = node.getType?.();
+                            if (type === 'text' && node.getKey() === anchorKey) return true;
+                            const nodeChildren = node.getChildren ? node.getChildren() : [];
+                            return nodeChildren.some(searchForTextNode);
+                          };
+                          
+                          if (searchForTextNode(child)) {
+                            targetParagraphKey = child.getKey();
+                            break;
+                          }
                         }
                       }
                     }
@@ -674,17 +678,19 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        const searchForTextNode = (node: any): boolean => {
-                          if (node.getKey() === anchorKey) return true;
-                          const type = node.getType?.();
-                          if (type === 'text' && node.getKey() === anchorKey) return true;
-                          const nodeChildren = node.getChildren ? node.getChildren() : [];
-                          return nodeChildren.some(searchForTextNode);
-                        };
-                        
-                        if (searchForTextNode(child)) {
-                          targetParagraphKey = child.getKey();
-                          break;
+                        if (child) {
+                          const searchForTextNode = (node: any): boolean => {
+                            if (node.getKey() === anchorKey) return true;
+                            const type = node.getType?.();
+                            if (type === 'text' && node.getKey() === anchorKey) return true;
+                            const nodeChildren = node.getChildren ? node.getChildren() : [];
+                            return nodeChildren.some(searchForTextNode);
+                          };
+                          
+                          if (searchForTextNode(child)) {
+                            targetParagraphKey = child.getKey();
+                            break;
+                          }
                         }
                       }
                     }
@@ -813,17 +819,19 @@ export function LexicalCursorRenderer() {
                     if (!targetParagraphKey) {
                       for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        const searchForTextNode = (node: any): boolean => {
-                          if (node.getKey() === anchorKey) return true;
-                          const type = node.getType?.();
-                          if (type === 'text' && node.getKey() === anchorKey) return true;
-                          const nodeChildren = node.getChildren ? node.getChildren() : [];
-                          return nodeChildren.some(searchForTextNode);
-                        };
-                        
-                        if (searchForTextNode(child)) {
-                          targetParagraphKey = child.getKey();
-                          break;
+                        if (child) {
+                          const searchForTextNode = (node: any): boolean => {
+                            if (node.getKey() === anchorKey) return true;
+                            const type = node.getType?.();
+                            if (type === 'text' && node.getKey() === anchorKey) return true;
+                            const nodeChildren = node.getChildren ? node.getChildren() : [];
+                            return nodeChildren.some(searchForTextNode);
+                          };
+                          
+                          if (searchForTextNode(child)) {
+                            targetParagraphKey = child.getKey();
+                            break;
+                          }
                         }
                       }
                     }
