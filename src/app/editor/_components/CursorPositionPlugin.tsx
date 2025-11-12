@@ -322,20 +322,24 @@ function syncSelectionToDOM(editor: any): boolean {
     });
 
     // If we found a DOM node, set the selection
-    if (domNode && domNode.nodeType === Node.TEXT_NODE && domNode.textContent !== null) {
-      const domSelection = window.getSelection();
-      if (domSelection) {
-        const range = document.createRange();
-        const textLength = domNode.textContent.length;
-        const offset = Math.min(Math.max(0, domOffset), textLength);
-        
-        range.setStart(domNode, offset);
-        range.setEnd(domNode, offset);
-        range.collapse(true);
-        
-        domSelection.removeAllRanges();
-        domSelection.addRange(range);
-        return true;
+    if (domNode) {
+      // Type guard: check if it's a Text node
+      const textNode = domNode.nodeType === Node.TEXT_NODE ? domNode as Text : null;
+      if (textNode && textNode.textContent !== null) {
+        const domSelection = window.getSelection();
+        if (domSelection) {
+          const range = document.createRange();
+          const textLength = textNode.textContent.length;
+          const offset = Math.min(Math.max(0, domOffset), textLength);
+          
+          range.setStart(textNode, offset);
+          range.setEnd(textNode, offset);
+          range.collapse(true);
+          
+          domSelection.removeAllRanges();
+          domSelection.addRange(range);
+          return true;
+        }
       }
     }
     
